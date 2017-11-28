@@ -11,6 +11,14 @@ using namespace std;
 void fixEndings(char *s){
 	s[strlen(s)-1] = '\t';
 }
+// check if field is non-empty
+bool checkField(char *f){
+	if(f[0]=='\0'){
+		printf("ERROR: family file appears malformed\n");
+		return(true);
+	}
+	return(false);
+}
 
 int main() {
 	// INIT
@@ -48,13 +56,22 @@ int main() {
 	int nsamples;
 
 	// read family info file:
+	// format MUST be:  dadid  momid  fetid
 	while( (nreadf = getline(&linef, &lenf, ffp)) > 0){
 		linecp = strdupa(linef);
 		fixEndings(linecp);
+		
 		fieldf = strsep(&linecp, "\t");
-		fets.push_back(fieldf);
+		if(checkField(fieldf)) return(1);
+		dads.push_back(fieldf);
+
 		fieldf = strsep(&linecp, "\t");
+		if(checkField(fieldf)) return(1);
 		moms.push_back(fieldf);
+
+		fieldf = strsep(&linecp, "\t");
+		if(checkField(fieldf)) return(1);
+		fets.push_back(fieldf);
 	}
 
 	// C-arrays for samples:
@@ -72,14 +89,14 @@ int main() {
 
 		printf("%s and %s are parents of %s \n", momsc[i], dadsc[i], fetsc[i]);
 	}
-	printf("Total amount of trios found: %s\n", ntoread);
+	printf("Total amount of trios found: %d\n", ntoread);
 
 	// positions of good parents in VCF
 	// (init to -1 for error catching)
 	int momspos[ntoread], dadspos[ntoread], fetspos[ntoread];
 	for(int i=0; i<ntoread; i++){
-		momspos[i] = -1;
 		dadspos[i] = -1;
+		momspos[i] = -1;
 		fetspos[i] = -1;
 	}
 
@@ -100,21 +117,25 @@ int main() {
 
 			// check each ID with 'good' ids from fam file:
 			while((field = strsep(&linecp, "\t")) != NULL){
-				if(fieldn>9){
-					for(int i=0; i<ntoread; i++){
-						if(strcmp(momsc[i], field)==0){
-							momspos[i] = fieldn-10;
-							printf("found sample %s in good moms\n", field);
-							break;
-						} else if(strcmp(dadsc[i], field)==0){
-							dadspos[i] = fieldn-10;
-							printf("found sample %s in good dads\n", field);
-							break;
-						} else if(strcmp(fetsc[i], field)==0){
-							fetspos[i] = fieldn-10;
-							printf("found sample %s in good fets\n", field);
-							break;
-						}
+				// skip info fields
+				if(fieldn<10){
+					fieldn++;
+					continue;
+				}
+				
+				for(int i=0; i<ntoread; i++){
+					if(strcmp(momsc[i], field)==0){
+						momspos[i] = fieldn-10;
+						printf("found sample %s in good moms\n", field);
+						break;
+					} else if(strcmp(dadsc[i], field)==0){
+						dadspos[i] = fieldn-10;
+						printf("found sample %s in good dads\n", field);
+						break;
+					} else if(strcmp(fetsc[i], field)==0){
+						fetspos[i] = fieldn-10;
+						printf("found sample %s in good fets\n", field);
+						break;
 					}
 				}
 				
@@ -137,10 +158,10 @@ int main() {
 	fprintf(ofp, "#CHROM\tPOS\tID\tREF\tALT\tINFO");
 	for(int i=0; i<ntoread; i++){
 		if(momspos[i]<0 || fetspos[i]<0 || dadspos[i]<0){
-			printf("ERROR: trio %s, %s, %s was not found in VCF.\n", dadsc[i], momsc[i], fetsc[i]);
+			printf("ERROR: trio %s, %s, %s was not found in VCF.\n", momsc[i], dadsc[i], fetsc[i]);
 			return(1);
 		} else {
-			fprintf(ofp, "\t%s\t%s\t%s", dadsc[i], momsc[i], fetsc[i]);
+			fprintf(ofp, "\t%s\t%s\t%s", momsc[i], dadsc[i], fetsc[i]);
 		}
 		delete dadsc[i];
 		delete momsc[i];
@@ -152,6 +173,7 @@ int main() {
 	int hapA[nsamples], hapB[nsamples];
 	int transmM, transmP, untransmM, untransmP;
 	int nlines = 0;
+	int merrs = 0;
 
 	// continue to actual genotypes
 	while( (nread = getline(&line, &len, ifp)) > 0 ){
@@ -180,26 +202,28 @@ int main() {
 
 		// re-phase the haplotypes
 		for(int i = 0; i<ntoread; i++){
-			transmP = hapA[fetspos[i]];
 			transmM = hapB[fetspos[i]];
-			untransm = hapA[momspos[i]] + hapB[momspos[i]] - transm;
+			transmP = hapA[fetspos[i]];
+			untransmM = hapA[momspos[i]] + hapB[momspos[i]] - transmM;
+			untransmP = hapA[dadspos[i]] + hapB[dadspos[i]] - transmP;
 
-			if(untransm==0 || untransm==1){
-				// print: patT|patU  matT|matU  fetT|fetU
-				fprintf(ofp, "\t%d|%d", transmP, untransmP);
-				fprintf(ofp, "\t%d|%d", transmM, untransmM);
-				fprintf(ofp, "\t%d|%d", transmP, transmM);
-			} else {
+			if(untransmM<0 || untransmM>1 || untransmP<0 || untransmP>1){
 				// Mendelian error for the entire trio
 				fprintf(ofp, "\t.|.");
 				fprintf(ofp, "\t.|.");
 				fprintf(ofp, "\t.|.");
 				merrs++;
+			} else {
+				// print: matT|matU  patT|patU  fetM|fetP
+				fprintf(ofp, "\t%d|%d", transmM, untransmM);
+				fprintf(ofp, "\t%d|%d", transmP, untransmP);
+				fprintf(ofp, "\t%d|%d", transmM, transmP);
 			}
 		}
 		fprintf(ofp, "\n");
 	}
 	printf("Scan complete. Total genotypes read: %d\n", nlines);
+	printf("In total, %d Mendelian errors were observed.\n", merrs);
 
 	free(line);
 	free(linef);
