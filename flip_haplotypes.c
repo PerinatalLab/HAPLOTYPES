@@ -111,7 +111,8 @@ int main() {
 			linecp = strdupa(line);
 			fixEndings(linecp);
 
-			// check each ID with 'good' ids from fam file:
+			// check each ID with 'good' ids from fam file
+			// and store the corresponding column index:
 			while((field = strsep(&linecp, "\t")) != NULL){
 				// skip info fields
 				if(fieldn<10){
@@ -120,15 +121,13 @@ int main() {
 				}
 				
 				for(int i=0; i<ntoread; i++){
+					// note: multigenerational structures will result in errors
 					if(strcmp(momsc[i], field)==0){
 						momspos[i] = fieldn-10;
-						break;
 					} else if(strcmp(dadsc[i], field)==0){
 						dadspos[i] = fieldn-10;
-						break;
 					} else if(strcmp(fetsc[i], field)==0){
 						fetspos[i] = fieldn-10;
-						break;
 					}
 				}
 				
