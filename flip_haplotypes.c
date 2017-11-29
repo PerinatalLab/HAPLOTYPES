@@ -28,11 +28,6 @@ int main() {
 	FILE *lfp, *ffp;
 	char logFile[] = "log.txt";
 	char famFile[] = "parents.txt";
-	// debugging:
-	FILE *ifp;
-	char inFile[] = "in.vcf";
-	ifp = fopen(inFile, "r");
-
 
 	lfp = fopen(logFile, "w");
 	ffp = fopen(famFile, "r");
@@ -103,7 +98,7 @@ int main() {
 
 	// read VCF:
 	fprintf(lfp, "Reading VCF file\n");
-	while( (nread = getline(&line, &len, ifp)) > 0 ){
+	while( (nread = getline(&line, &len, stdin)) > 0 ){
 		int fieldn = 1;
 
 		// drop info lines
@@ -186,7 +181,7 @@ int main() {
 	}
 
 	// continue to actual genotypes
-	while( (nread = getline(&linev, &linesize, ifp)) > 0 ){
+	while( (nread = getline(&linev, &linesize, stdin)) > 0 ){
 		int fieldn = 1;
 
 		fixEndings(linev);
@@ -262,9 +257,6 @@ int main() {
 	free(linef);
 	fclose(lfp);
 	fclose(ffp);
-
-	// debugging:
-	fclose(ifp);
 
 	return(0);
 }
