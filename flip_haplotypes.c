@@ -7,8 +7,10 @@
 
 using namespace std;
 
+//
 // USAGE: zcat onechrom.vcf.gz | ./flip_haplotypes | gzip > out.vcf.gz
-// parents.txt format MUST be:  fetid  dadid  momid, tab-separated
+// parents.txt format MUST be:  fetid  dadid  momid  pregid  whatever, tab-separated
+// missing parents encoded by 0
 // will create log.txt
 
 // replace \n with \t to fix reading of last field:
@@ -25,6 +27,7 @@ void checkField(char *f){
 
 int main() {
 	// INIT
+	int version = 1;
 	FILE *lfp, *ffp;
 	char logFile[] = "log.txt";
 	char famFile[] = "parents.txt";
@@ -40,7 +43,6 @@ int main() {
 		exit(1);
 	}
 
-
 	// READ
 	// reading variables:
 	char *line, *field, *linecp, *linef, *fieldf;
@@ -49,7 +51,7 @@ int main() {
 	ssize_t nread, nreadf;
 
 	// sample variables:
-	vector <string> moms, dads, fets;
+	vector <string> moms, dads, fets, pregs;
 	int nsamples;
 
 	// read family info file:
@@ -59,6 +61,10 @@ int main() {
 
 		fieldf = strsep(&linecp, "\t");
 		checkField(fieldf);
+		if(fieldf=="0"){
+			fprintf(stderr, "ERROR: missing fetal IDs not allowed\n");
+			exit(1);
+		}
 		fets.push_back(fieldf);
 		
 		fieldf = strsep(&linecp, "\t");
@@ -68,51 +74,79 @@ int main() {
 		fieldf = strsep(&linecp, "\t");
 		checkField(fieldf);
 		moms.push_back(fieldf);
+
+		fieldf = strsep(&linecp, "\t");
+		checkField(fieldf);
+		pregs.push_back(fieldf);
 	}
 
-	// C-arrays for samples:
+	// copy sample names to fixed C-style arrays
+	// and initialize arrays of trio positions in VCF
 	int ntoread = moms.size();
-	char *momsc[ntoread], *dadsc[ntoread], *fetsc[ntoread];
+	char *momsc[ntoread], *dadsc[ntoread], *fetsc[ntoread], *pregsc[ntoread];
+	int momspos[ntoread], dadspos[ntoread], fetspos[ntoread];
+	int nmatduos = 0;
+	int npatduos = 0;
 
 	fprintf(lfp, "Family info file read. The following trios were found:\n");
 	for(int i=0; i<ntoread; i++){
+		// sample names
 		momsc[i] = new char[moms[i].size() + 1];
 		dadsc[i] = new char[dads[i].size() + 1];
 		fetsc[i] = new char[fets[i].size() + 1];
+		pregsc[i] = new char[pregs[i].size() + 1];
 		strcpy(momsc[i], moms[i].c_str());
 		strcpy(dadsc[i], dads[i].c_str());
 		strcpy(fetsc[i], fets[i].c_str());
+		strcpy(pregsc[i], pregs[i].c_str());
 
-		fprintf(lfp, "%s and %s are parents of %s \n", momsc[i], dadsc[i], fetsc[i]);
+		// positions of samples in VCF
+		// (init to -2 as an error marker)
+		dadspos[i] = -2;
+		momspos[i] = -2;
+		fetspos[i] = -2;
+
+		// check and log missings
+		// (-1 will tell phaser to switch to duo mode)
+		if(momsc[i]=="0" && dadsc[i]=="0"){
+			fprintf(stderr, "ERROR: both parents are missing for pregnancy %s\n", pregsc[i]);
+			exit(1);
+		} else if (momsc[i]=="0"){
+			fprintf(lfp, "%s is father of %s\n", dadsc[i], fetsc[i]);
+			momspos[i] = -1;
+			npatduos++;
+		} else if (dadsc[i]=="0"){
+			fprintf(lfp, "%s is mother of %s\n", momsc[i], fetsc[i]);
+			dadspos[i] = -1;
+			nmatduos++;
+		} else {
+			fprintf(lfp, "%s and %s are parents of %s \n", momsc[i], dadsc[i], fetsc[i]);
+		}
+
 	}
 	fprintf(lfp, "Total amount of trios found: %d\n", ntoread);
+	fprintf(lfp, "Total amount of maternal duos found: %d\n", nmatduos);
+	fprintf(lfp, "Total amount of paternal duos found: %d\n", npatduos);
 
-	// positions of good parents in VCF
-	// (init to -1 for error catching)
-	int momspos[ntoread], dadspos[ntoread], fetspos[ntoread];
-	for(int i=0; i<ntoread; i++){
-		dadspos[i] = -1;
-		momspos[i] = -1;
-		fetspos[i] = -1;
-	}
 
+	// OUTPUT PRINTING STARTS HERE
 	// read VCF:
 	fprintf(lfp, "Reading VCF file\n");
 	while( (nread = getline(&line, &len, stdin)) > 0 ){
 		int fieldn = 1;
 
-		// drop info lines
+		// push meta-info lines straight to output
 		if(strncmp(line, "##", 2) == 0){
+			printf("%s", line);
 			continue;
 		}
+		printf("##haplotype_source=flipper_v%d\n", version);
 
 		// read header, parse sample ids
 		if(strncmp(line, "#", 1) == 0){
 			linecp = strdupa(line);
 			fixEndings(linecp);
 
-			// check each ID with 'good' ids from fam file
-			// and store the corresponding column index:
 			while((field = strsep(&linecp, "\t")) != NULL){
 				// skip info fields
 				if(fieldn<10){
@@ -120,8 +154,10 @@ int main() {
 					continue;
 				}
 				
+				// check each ID with 'good' ids from fam file
+				// and store the corresponding column index
+				// (NOTE: multigenerational structures will result in errors)
 				for(int i=0; i<ntoread; i++){
-					// note: multigenerational structures will result in errors
 					if(strcmp(momsc[i], field)==0){
 						momspos[i] = fieldn-10;
 					} else if(strcmp(dadsc[i], field)==0){
@@ -133,10 +169,11 @@ int main() {
 				
 				fieldn++;
 			}
+
 			// 9 initial fields + 1 empty after terminal \t
 			nsamples = fieldn-11;
 			fprintf(lfp, "Header line read.\n");
-			fprintf(lfp, "In total, read %d samples from VCF\n", nsamples);
+			fprintf(lfp, "In total, %d samples were seen in the n", nsamples);
 
 			break;
 		}
@@ -146,31 +183,32 @@ int main() {
 		return(1);
 	}
 
-	// header of output:
-	printf("#CHROM\tPOS\tID\tREF\tALT\tINFO");
+	// check if all samples were found
+	// and print header line to output
+	printf("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT");
 	for(int i=0; i<ntoread; i++){
-		if(momspos[i]<0 || fetspos[i]<0 || dadspos[i]<0){
+		if(momspos[i]==-2 || fetspos[i]==-2 || dadspos[i]==-2){
 			fprintf(stderr, "ERROR: trio %s, %s, %s was not found in VCF.\n", momsc[i], dadsc[i], fetsc[i]);
 			fprintf(stderr, "their positions are %d, %d, %d.\n", momspos[i], dadspos[i], fetspos[i]);
 			exit(1);
 		} else {
-			fprintf(lfp, "All trios were found in VCF.\n");
-			printf("\t%s\t%s\t%s", momsc[i], dadsc[i], fetsc[i]);
+			printf("\t%s_%s\t%s_%s\t%s_%s", pregsc[i], fetsc[i], pregsc[i], momsc[i], pregsc[i], dadsc[i]);
 		}
 		delete dadsc[i];
 		delete momsc[i];
 		delete fetsc[i];
 	}
 	printf("\n");
+	fprintf(lfp, "All trios were found in VCF.\n");
 
 	// prep for reading genotypes
 	int hapA[nsamples], hapB[nsamples];
 	int transmM, transmP, untransmM, untransmP;
-	bool missing;
+	bool missing, merr;
 	int nlines = 0;
-	int merrs = 0;
 	int nmiss = 0;
 
+	// line buffer size is not critical as it will realloc if needed
 	char *linev;
 	size_t linesize = nsamples * 40;
 	linev = (char*)malloc(linesize * sizeof(char));
@@ -179,7 +217,15 @@ int main() {
 		exit(1);
 	}
 
-	// continue to actual genotypes
+	// outbut buffer - 4 chars per person
+	char outbuf[4*3*ntoread];
+	fprintf(lfp, "Limiting output buffer to %d characters, + info fields.\n", 4*3*ntoread);
+	for(int i=0; i<3*ntoread; i++){
+		outbuf[4*i] = '\t';
+		outbuf[4*i + 2] = '|';
+	}
+
+	// continue reading VCF: genotypes
 	while( (nread = getline(&linev, &linesize, stdin)) > 0 ){
 		int fieldn = 1;
 
@@ -200,9 +246,13 @@ int main() {
 				hapA[fieldn-10] = field[0]-48;
 				hapB[fieldn-10] = field[2]-48;
 			} else if(fieldn==1){
-				// print out info fields:
+				// print out info fields
+				// (NOTE: could switch to sprintf buffer here)
 				printf("%s", field);
-			} else if(fieldn < 6 || fieldn==8){
+			} else if(fieldn==9){
+				// change FORMAT field
+				printf("\tGT");
+			} else {
 				printf("\t%s", field);
 			}
 			
@@ -210,45 +260,61 @@ int main() {
 		}
 		nlines++;
 
+		// PHASER
 		// re-phase the haplotypes, trio-by-trio
 		for(int i = 0; i<ntoread; i++){
 			missing = false;
+			merr = false;
 			transmM = hapB[fetspos[i]];
 			transmP = hapA[fetspos[i]];
-			untransmM = hapA[momspos[i]] + hapB[momspos[i]];
-			untransmP = hapA[dadspos[i]] + hapB[dadspos[i]];
 
-			// if trio has more dosage than 6, one or more calls were missing
-			if(transmM + transmP + untransmM + untransmP > 6){
-				fprintf(lfp, "Warning: trio %d had missing genotypes.\n", i);
+			// if fetal genotypes are missing, can't phase
+			if(transmM + transmP > 2){
 				missing = true;
-			}
-			untransmM = untransmM - transmM;
-			untransmP = untransmP - transmP;
-
-			if(untransmM<0 || untransmM>1 || untransmP<0 || untransmP>1){
-				// Mendelian error for the entire trio
-				printf("\t.|.");
-				printf("\t.|.");
-				printf("\t.|.");
-				merrs++;
-			} else if (missing){
-				printf("\t.|.");
-				printf("\t.|.");
-				printf("\t.|.");
-				nmiss++;	
 			} else {
-				// print: matT|matU  patT|patU  fetM|fetP
-				printf("\t%d|%d", transmM, untransmM);
-				printf("\t%d|%d", transmP, untransmP);
-				printf("\t%d|%d", transmM, transmP);
+				if(momspos[i]<0){
+					// switch to duo mode if a parent is missing
+					untransmM = -2;
+				} else {
+					// phase
+					untransmM = hapA[momspos[i]] + hapB[momspos[i]] - transmM;
+					// check for Mendelian errors or weird input
+					// NOTE: missing input will also result in this
+					merr = untransmM<0 || untransmM>1;
+				}
+				if(dadspos[i]<0){
+					untransmP = -2;
+				} else {
+					untransmP = hapA[dadspos[i]] + hapB[dadspos[i]] - transmP;
+					merr = untransmP<0 || untransmP>1 || merr;
+				}
 			}
+
+			// mask the entire trio on MEs or missing input
+			// (-2 + 48 = ASCII '.')
+			if(merr || missing){
+				transmM = transmP = -2;
+				untransmM = untransmP = -2;
+				nmiss++;
+			}
+
+			// convert to ASCII char codes
+			transmM += 48;
+			transmP += 48;
+			untransmM += 48;
+			untransmP += 48;
+
+			// print: fetM|fetp  matT|matU  patT|patU
+			outbuf[i*12+1] = transmM; outbuf[i*12+3] = transmP;
+			outbuf[i*12+5] = transmM; outbuf[i*12+7] = untransmM;
+			outbuf[i*12+9] = transmP; outbuf[i*12+11] = untransmP;
 		}
-		printf("\n");
+
+		printf("%s\n", outbuf);
 	}
+
 	fprintf(lfp, "Scan complete. Total markers read: %d\n", nlines);
-	fprintf(lfp, "In total, %d Mendelian errors were observed.\n", merrs);
-	fprintf(lfp, "In total, %d markers x trios were missing.\n", nmiss);
+	fprintf(lfp, "Mendelian errors or missing input resulted in %d trios x markers set to missing.\n", nmiss);
 
 	free(linev);
 
