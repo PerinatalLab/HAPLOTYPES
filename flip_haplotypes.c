@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+#include <zlib.h>
 #include <vector>
 #include <string>
 
@@ -27,20 +28,26 @@ void checkField(char *f){
 
 int main() {
 	// INIT
-	int version = 1;
+	int version = 11;
 	FILE *lfp, *ffp;
+	gzFile ofp;
 	char logFile[] = "log.txt";
 	char famFile[] = "parents.txt";
+	char miniOut[] = "out.txt.gz";
 
 	lfp = fopen(logFile, "w");
 	ffp = fopen(famFile, "r");
+	ofp = gzopen(miniOut, "w");
 	if(lfp == NULL){
-		fprintf(stderr, "ERROR: Can't open log file!\n");
+		fprintf(stderr, "ERROR: Can't create log file!\n");
 		exit(1);
 	}
 	if(ffp == NULL){
 		fprintf(stderr, "ERROR: Can't open family info file!\n");
 		exit(1);
+	}
+	if(ofp == NULL){
+		fprintf(stderr, "ERROR: Can't create mini-result file!\n");
 	}
 
 	// READ
@@ -55,6 +62,7 @@ int main() {
 	int nsamples;
 
 	// read family info file:
+	nreadf = getline(&linef, &lenf, ffp);
 	while( (nreadf = getline(&linef, &lenf, ffp)) > 0){
 		linecp = strdupa(linef);
 		fixEndings(linecp);
@@ -108,14 +116,14 @@ int main() {
 
 		// check and log missings
 		// (-1 will tell phaser to switch to duo mode)
-		if(momsc[i]=="0" && dadsc[i]=="0"){
+		if(strcmp(momsc[i], "0")==0 && strcmp(dadsc[i], "0")==0){
 			fprintf(stderr, "ERROR: both parents are missing for pregnancy %s\n", pregsc[i]);
 			exit(1);
-		} else if (momsc[i]=="0"){
+		} else if (strcmp(momsc[i], "0")==0){
 			fprintf(lfp, "%s is father of %s\n", dadsc[i], fetsc[i]);
 			momspos[i] = -1;
 			npatduos++;
-		} else if (dadsc[i]=="0"){
+		} else if (strcmp(dadsc[i], "0")==0){
 			fprintf(lfp, "%s is mother of %s\n", momsc[i], fetsc[i]);
 			dadspos[i] = -1;
 			nmatduos++;
@@ -173,7 +181,7 @@ int main() {
 			// 9 initial fields + 1 empty after terminal \t
 			nsamples = fieldn-11;
 			fprintf(lfp, "Header line read.\n");
-			fprintf(lfp, "In total, %d samples were seen in the n", nsamples);
+			fprintf(lfp, "In total, %d samples were seen in the VCF.\n", nsamples);
 
 			break;
 		}
@@ -219,10 +227,15 @@ int main() {
 
 	// outbut buffer - 4 chars per person
 	char outbuf[4*3*ntoread];
+	// second output buffer
+	char gzbuf[2*ntoread];
 	fprintf(lfp, "Limiting output buffer to %d characters, + info fields.\n", 4*3*ntoread);
 	for(int i=0; i<3*ntoread; i++){
 		outbuf[4*i] = '\t';
 		outbuf[4*i + 2] = '|';
+	}
+	for(int i=0; i<ntoread; i++){
+		gzbuf[2*i] = '\t';
 	}
 
 	// continue reading VCF: genotypes
@@ -249,6 +262,12 @@ int main() {
 				// print out info fields
 				// (NOTE: could switch to sprintf buffer here)
 				printf("%s", field);
+			} else if(fieldn==2){
+				printf("\t%s", field);
+				gzprintf(ofp, "%s", field);
+			} else if(fieldn<6){
+				printf("\t%s", field);
+				gzprintf(ofp, "\t%s", field);
 			} else if(fieldn==9){
 				// change FORMAT field
 				printf("\tGT");
@@ -308,9 +327,13 @@ int main() {
 			outbuf[i*12+1] = transmM; outbuf[i*12+3] = transmP;
 			outbuf[i*12+5] = transmM; outbuf[i*12+7] = untransmM;
 			outbuf[i*12+9] = transmP; outbuf[i*12+11] = untransmP;
+
+			gzbuf[i*2+1] = untransmM; 
 		}
 
+		// flush output buffer:
 		printf("%s\n", outbuf);
+		gzprintf(ofp, "%s\n", gzbuf);
 	}
 
 	fprintf(lfp, "Scan complete. Total markers read: %d\n", nlines);
@@ -322,6 +345,7 @@ int main() {
 	free(linef);
 	fclose(lfp);
 	fclose(ffp);
+	gzclose(ofp);
 
 	return(0);
 }
