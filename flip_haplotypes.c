@@ -8,8 +8,9 @@
 
 using namespace std;
 
-//
-// USAGE: zcat onechrom.vcf.gz | ./flip_haplotypes | gzip > out.vcf.gz
+#define version 11
+
+// USAGE: zcat onechrom.vcf.gz | ./flip_haplotypes famfile logfile outfile2 | gzip > out.vcf.gz
 // parents.txt format MUST be:  fetid  dadid  momid  pregid  whatever, tab-separated
 // missing parents encoded by 0
 // will create log.txt
@@ -26,18 +27,26 @@ void checkField(char *f){
 	}
 }
 
-int main() {
+int main(int argc, char *argv[]) {
 	// INIT
-	int version = 11;
+	// arg check
+	char *famFile, *logFile, *miniOut;
+	if(argc != 4){
+		fprintf(stderr, "ERROR: script needs 3 arguments, %d supplied.\n", argc-1);
+		exit(1);
+	} else {
+		famFile = argv[1];
+		logFile = argv[2];
+		miniOut = argv[3];
+	}
+
 	FILE *lfp, *ffp;
 	gzFile ofp;
-	char logFile[] = "log.txt";
-	char famFile[] = "parents.txt";
-	char miniOut[] = "out.txt.gz";
 
 	lfp = fopen(logFile, "w");
 	ffp = fopen(famFile, "r");
 	ofp = gzopen(miniOut, "w");
+	int gzerr = gzbuffer(ofp, 32000);
 	if(lfp == NULL){
 		fprintf(stderr, "ERROR: Can't create log file!\n");
 		exit(1);
@@ -48,7 +57,14 @@ int main() {
 	}
 	if(ofp == NULL){
 		fprintf(stderr, "ERROR: Can't create mini-result file!\n");
+		exit(1);
 	}
+	if(gzerr != 0){
+		fprintf(stderr, "ERROR: Can't resize zlib buffer!\n");
+		exit(1);
+	}
+	fprintf(lfp, "Starting log for run.\n");
+	fprintf(lfp, "Run command: %s %s %s %s\n", argv[0], argv[1], argv[2], argv[3]);
 
 	// READ
 	// reading variables:
@@ -230,6 +246,7 @@ int main() {
 	// second output buffer
 	char gzbuf[2*ntoread];
 	fprintf(lfp, "Limiting output buffer to %d characters, + info fields.\n", 4*3*ntoread);
+	fprintf(lfp, "Limiting zlib buffer to %d characters, + info fields.\n", 2*ntoread);
 	for(int i=0; i<3*ntoread; i++){
 		outbuf[4*i] = '\t';
 		outbuf[4*i + 2] = '|';
