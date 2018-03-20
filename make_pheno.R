@@ -3,8 +3,8 @@
 ## This script simulates VCF files for testing purposes.
 
 ##### PARAMETERS #####
-nsnps = 10000
-ninds = 6000
+nsnps = 50
+ninds = 30
 h2 = 0.5
 
 # doesn't mean anything
@@ -45,6 +45,9 @@ write.table(vcf, "test.vcf", T, col.names = T, row.names = F, quote=F, sep="\t")
 # bgzip and tabix the VCF
 system("bgzip -f test.vcf; tabix test.vcf.gz")
 
+## fam file
+fam = as.data.frame(matrix(paste0("iid", 1:ninds), ncol=3))
+write.table(fam, "test.fam", col.names=F, row.names=F, quote=F, sep="\t")
 
 ## pheno file
 pheno = data.frame(fid = 1:ninds, iid=colnames(vcf)[-c(1:9)])
