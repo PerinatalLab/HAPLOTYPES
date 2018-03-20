@@ -2,10 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
-#include <vector>
-#include <string>
 
-using namespace std;
 
 #define version 11
 
@@ -13,12 +10,9 @@ using namespace std;
 // This script shall take in a family file, format compatible with above,
 // allowing trios or duos with one 0 parent,
 // and a vcf.gz or vcf file, with haplotypes aligned M|P T|U T|U,
-// and produce three .tped files for easy input to PLINK.
-// (LATER: make it output .bedsets directly?)
-
+// and produce three .bed files for easy input to PLINK, plus a .bim and .fam file.
 
 // USAGE: zcat onechrom.vcf.gz | ./split_haplotypes logfile outstem
-// (create .tfam yourself for now)
 
 // replace \n with \t to fix reading of last field:
 void fixEndings(char *s){
@@ -28,35 +22,38 @@ void fixEndings(char *s){
 int main(int argc, char *argv[]) {
 	// INIT
 	// arg check
-	char *logFile, *outFile, *outFile1, *outFile2, *outFam;
+	char *logFile, *outFile, *outFile1, *outFile2, *outFam, *outBim;
 	if(argc != 3){
 		fprintf(stderr, "ERROR: script needs 2 arguments, %d supplied.\n", argc-1);
 		exit(1);
 	} else {
 		logFile = argv[1];
-		outFile = strdupa(argv[2]);
-		outFile1 = strdupa(outFile);
-		outFile2 = strdupa(outFile);
-		outFam = strdupa(argv[2]);
-		strcat(outFile, ".tped");
-		strcat(outFile1, "1.tped");
-		strcat(outFile2, "2.tped");
-		strcat(outFam, ".tfam");
+		outFile = strdup(argv[2]);
+		outFile1 = strdup(outFile);
+		outFile2 = strdup(outFile);
+		outBim = strdup(argv[2]);
+		outFam = strdup(argv[2]);
+		strcat(outFile, ".bed");
+		strcat(outFile1, "1.bed");
+		strcat(outFile2, "2.bed");
+		strcat(outBim, ".bim");
+		strcat(outFam, ".fam");
 	}
 
-	FILE *lfp, *of, *of1, *of2, *ofF;
+	FILE *lfp, *of, *of1, *of2, *ofB, *ofF;
 
 	lfp = fopen(logFile, "w");
-	of = fopen(outFile, "w");
-	of1 = fopen(outFile1, "w");
-	of2 = fopen(outFile2, "w");
+	of = fopen(outFile, "wb");
+	of1 = fopen(outFile1, "wb");
+	of2 = fopen(outFile2, "wb");
+	ofB = fopen(outBim, "w");
 	ofF = fopen(outFam, "w");
 
 	if(lfp == NULL){
 		fprintf(stderr, "ERROR: Can't create log file!\n");
 		exit(1);
 	}
-	if(of == NULL || of1 == NULL || of2 == NULL || ofF == NULL){
+	if(of == NULL || of1 == NULL || of2 == NULL || ofB == NULL || ofF == NULL){
 		fprintf(stderr, "ERROR: Can't create one of output files!\n");
 		exit(1);
 	}
@@ -90,12 +87,12 @@ int main(int argc, char *argv[]) {
 
 		// read header, parse sample ids
 		if(strncmp(line, "#", 1) == 0){
-			linecp = strdupa(line);
+			linecp = strdup(line);
 			fixEndings(linecp);
 
 			while((field = strsep(&linecp, "\t")) != NULL){
 				if(fieldn>9 && strcmp(field, "")!=0){
-					fprintf(ofF, "%s\t%s\t0\t0\t1\t1\n", field, field);
+					fprintf(ofF, "%s\t%s\t0\t0\t0\t0\n", field, field);
 				}
 				fieldn++;
 			}
@@ -122,23 +119,21 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 
-	// outbut buffer - 3 chars per person
-	char outbuf[4*nsamples+1], outbuf1[4*nsamples+1], outbuf2[4*nsamples+1];
-	fprintf(lfp, "Limiting output buffers to %d characters, + info fields.\n", 4*nsamples);
-	for(int i=0; i<nsamples; i++){
-		outbuf[4*i] = '\t';
-		outbuf1[4*i] = '\t';
-		outbuf2[4*i] = '\t';
-		outbuf[4*i+2] = ' ';
-		outbuf1[4*i+2] = ' ';
-		outbuf2[4*i+2] = ' ';
-	}
-	outbuf[4*nsamples] = '\0';
-	outbuf1[4*nsamples] = '\0';
-	outbuf2[4*nsamples] = '\0';
+	// outbut buffer - 1 byte per 4 people
+	int nbytes = (nsamples + 3)/4;
+	unsigned char outbuf[nbytes], outbuf1[nbytes], outbuf2[nbytes];
+	outbuf[nbytes] = outbuf1[nbytes] = outbuf2[nbytes] = '\0';
+	fprintf(lfp, "Limiting output buffers to %d bytes, + info fields.\n", nbytes);
 
 	// continue reading VCF: genotypes
 	char *snppos, *alref, *alalt;
+	unsigned char byte, byte1, byte2;
+       	byte = byte1 = byte2 = 0x00;
+	int pos;
+	char const magic[] = {0x6c, 0x1b, 0x01, 0x00};
+	fprintf(of, "%s", magic);
+	fprintf(of1, "%s", magic);
+	fprintf(of2, "%s", magic);
 	while( (nread = getline(&linev, &linesize, stdin)) > 0 ){
 		int fieldn = 1;
 		int i = 0;
@@ -151,29 +146,58 @@ int main(int argc, char *argv[]) {
 			if(fieldn>9){
 				// store actual haplotypes:
 				// (48 = ASCII '0')
+				pos = (i % 4) * 2;
 				if(field[0]<48 || field[2]<48){
-					// recode strange genos and missing as 0
-					// NOTE: half-calls become missing!
+					// on strange or missing genos, force missing to all outputs
+					// NOTE: half-calls also become missing!
 					if(field[0]!='.' && field[2]!='.'){
 						fprintf(lfp, "Warning: unusual genotype %d|%d in field %d.\n",
 								field[0], field[2], fieldn);
 					}
-					nmiss++;
 
-					outbuf[4*i+1] = '0';
-					outbuf[4*i+3] = '0';
-					outbuf1[4*i+1] = '0';
-					outbuf1[4*i+3] = '0';
-					outbuf2[4*i+1] = '0';
-					outbuf2[4*i+3] = '0';
+					nmiss++;
+					byte += 0x01 << pos;
+					byte1 += 0x01 << pos;
+					byte2 += 0x01 << pos;
 				} else {
-					// map 0->A, 1->B
-					outbuf[4*i+1] = field[0]+17;
-					outbuf[4*i+3] = field[2]+17;
-					outbuf1[4*i+1] = field[0]+17;
-					outbuf1[4*i+3] = field[0]+17;
-					outbuf2[4*i+1] = field[2]+17;
-					outbuf2[4*i+3] = field[2]+17;
+					// for haplotype outputs:
+					if(field[0]=='0'){
+						byte1 += 0x00 << pos;
+					} else {
+						byte1 += 0x03 << pos;
+					}
+
+					if(field[2]=='0'){
+						byte2 += 0x00 << pos;
+					} else {
+						byte2 += 0x03 << pos;
+					}
+
+					// for main output:
+					if(field[0]=='0' && field[2]=='0'){
+						byte += 0x00 << pos;
+					} else if (field[0]=='1' && field[2]=='1'){
+						byte += 0x03 << pos;
+					} else if (field[0]=='1' || field[2]=='1'){
+						byte += 0x02 << pos;
+					} else {
+						fprintf(stderr, "ERROR: weird genotype at sample %d\n", i);
+						exit(1);
+					}
+				}
+
+				if(i % 4 == 3){
+					// flush to bigger buffer, reset byte
+					outbuf[i/4] = byte;
+					outbuf1[i/4] = byte1;
+					outbuf2[i/4] = byte2;
+					byte = byte1 = byte2 = 0x00;
+				} else if(i == nsamples-1){
+					// flush to bigger buffer, reset byte
+					outbuf[nbytes-1] = byte;
+					outbuf1[nbytes-1] = byte1;
+					outbuf2[nbytes-1] = byte2;
+					byte = byte1 = byte2 = 0x00;
 				}
 
 				i++;
@@ -182,11 +206,9 @@ int main(int argc, char *argv[]) {
 					exit(1);
 				}
 
-			// parse info fields ("map")
+			// parse info fields ("map/bim")
 			} else if(fieldn==1){
-				fprintf(of, "%s\t", field);
-				fprintf(of1, "%s\t", field);
-				fprintf(of2, "%s\t", field);
+				fprintf(ofB, "%s\t%s:", field, field);
 			} else if(fieldn==2){
 				snppos = field;
 			} else if(fieldn==4){
@@ -197,20 +219,20 @@ int main(int argc, char *argv[]) {
 
 			fieldn++;
 		}
+
 		if(i != nsamples){
 			fprintf(stderr, "ERROR: found only %d samples\n", i);
 			exit(1);
 		}
 
-		// print varID, cM position, bp position
-		fprintf(of, "%s_%s_%s\t0\t%s", snppos, alref, alalt, snppos);
-		fprintf(of1, "%s_%s_%s\t0\t%s", snppos, alref, alalt, snppos);
-		fprintf(of2, "%s_%s_%s\t0\t%s", snppos, alref, alalt, snppos);
+		// print varID, cM pos, bp pos, alleles to .bim file
+		fprintf(ofB, "%s:%s:%s\t0\t%s\t%s\t%s\n",
+				snppos, alref, alalt, snppos, alref, alalt);
 
 		// flush output buffer:
-		fprintf(of, "%s\n", outbuf);
-		fprintf(of1, "%s\n", outbuf1);
-		fprintf(of2, "%s\n", outbuf2);
+		fwrite(outbuf, sizeof outbuf, 1, of);
+		fwrite(outbuf1, sizeof outbuf1, 1, of1);
+		fwrite(outbuf2, sizeof outbuf2, 1, of2);
 
 		nlines++;
 	}
@@ -225,6 +247,7 @@ int main(int argc, char *argv[]) {
 	fclose(of);
 	fclose(of1);
 	fclose(of2);
+	fclose(ofB);
 	fclose(ofF);
 
 	return(0);
