@@ -28,31 +28,35 @@ void fixEndings(char *s){
 int main(int argc, char *argv[]) {
 	// INIT
 	// arg check
-	char *logFile, *outFile, *outFile1, *outFile2;
+	char *logFile, *outFile, *outFile1, *outFile2, *outFam;
 	if(argc != 3){
 		fprintf(stderr, "ERROR: script needs 2 arguments, %d supplied.\n", argc-1);
 		exit(1);
 	} else {
 		logFile = argv[1];
-		outFile = argv[2];
+		outFile = strdupa(argv[2]);
 		outFile1 = strdupa(outFile);
 		outFile2 = strdupa(outFile);
+		outFam = strdupa(argv[2]);
 		strcat(outFile, ".tped");
 		strcat(outFile1, "1.tped");
 		strcat(outFile2, "2.tped");
+		strcat(outFam, ".tfam");
 	}
 
-	FILE *lfp, *of, *of1, *of2;
+	FILE *lfp, *of, *of1, *of2, *ofF;
 
 	lfp = fopen(logFile, "w");
 	of = fopen(outFile, "w");
 	of1 = fopen(outFile1, "w");
 	of2 = fopen(outFile2, "w");
+	ofF = fopen(outFam, "w");
+
 	if(lfp == NULL){
 		fprintf(stderr, "ERROR: Can't create log file!\n");
 		exit(1);
 	}
-	if(of == NULL || of1 == NULL || of2 == NULL){
+	if(of == NULL || of1 == NULL || of2 == NULL || ofF == NULL){
 		fprintf(stderr, "ERROR: Can't create one of output files!\n");
 		exit(1);
 	}
@@ -90,6 +94,9 @@ int main(int argc, char *argv[]) {
 			fixEndings(linecp);
 
 			while((field = strsep(&linecp, "\t")) != NULL){
+				if(fieldn>9 && strcmp(field, "")!=0){
+					fprintf(ofF, "%s\t%s\t0\t0\t1\t1\n", field, field);
+				}
 				fieldn++;
 			}
 
@@ -116,16 +123,19 @@ int main(int argc, char *argv[]) {
 	}
 
 	// outbut buffer - 3 chars per person
-	char outbuf[3*nsamples+1], outbuf1[3*nsamples+1], outbuf2[3*nsamples+1];
-	fprintf(lfp, "Limiting output buffers to %d characters, + info fields.\n", 3*nsamples);
+	char outbuf[4*nsamples+1], outbuf1[4*nsamples+1], outbuf2[4*nsamples+1];
+	fprintf(lfp, "Limiting output buffers to %d characters, + info fields.\n", 4*nsamples);
 	for(int i=0; i<nsamples; i++){
-		outbuf[3*i] = '\t';
-		outbuf1[3*i] = '\t';
-		outbuf2[3*i] = '\t';
+		outbuf[4*i] = '\t';
+		outbuf1[4*i] = '\t';
+		outbuf2[4*i] = '\t';
+		outbuf[4*i+2] = ' ';
+		outbuf1[4*i+2] = ' ';
+		outbuf2[4*i+2] = ' ';
 	}
-	outbuf[3*nsamples] = '\0';
-	outbuf1[3*nsamples] = '\0';
-	outbuf2[3*nsamples] = '\0';
+	outbuf[4*nsamples] = '\0';
+	outbuf1[4*nsamples] = '\0';
+	outbuf2[4*nsamples] = '\0';
 
 	// continue reading VCF: genotypes
 	char *snppos, *alref, *alalt;
@@ -150,20 +160,20 @@ int main(int argc, char *argv[]) {
 					}
 					nmiss++;
 
-					outbuf[3*i+1] = '0';
-					outbuf[3*i+2] = '0';
-					outbuf1[3*i+1] = '0';
-					outbuf1[3*i+2] = '0';
-					outbuf2[3*i+1] = '0';
-					outbuf2[3*i+2] = '0';
+					outbuf[4*i+1] = '0';
+					outbuf[4*i+3] = '0';
+					outbuf1[4*i+1] = '0';
+					outbuf1[4*i+3] = '0';
+					outbuf2[4*i+1] = '0';
+					outbuf2[4*i+3] = '0';
 				} else {
 					// map 0->A, 1->B
-					outbuf[3*i+1] = field[0]+17;
-					outbuf[3*i+2] = field[2]+17;
-					outbuf1[3*i+1] = field[0]+17;
-					outbuf1[3*i+2] = field[0]+17;
-					outbuf2[3*i+1] = field[2]+17;
-					outbuf2[3*i+2] = field[2]+17;
+					outbuf[4*i+1] = field[0]+17;
+					outbuf[4*i+3] = field[2]+17;
+					outbuf1[4*i+1] = field[0]+17;
+					outbuf1[4*i+3] = field[0]+17;
+					outbuf2[4*i+1] = field[2]+17;
+					outbuf2[4*i+3] = field[2]+17;
 				}
 
 				i++;
@@ -215,6 +225,7 @@ int main(int argc, char *argv[]) {
 	fclose(of);
 	fclose(of1);
 	fclose(of2);
+	fclose(ofF);
 
 	return(0);
 }

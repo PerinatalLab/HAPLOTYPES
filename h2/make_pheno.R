@@ -3,8 +3,8 @@
 ## This script simulates VCF files for testing purposes.
 
 ##### PARAMETERS #####
-nsnps = 90000
-ninds = 500
+nsnps = 10000
+ninds = 6000
 h2 = 0.5
 
 # doesn't mean anything
@@ -35,6 +35,7 @@ for(i in 1:ninds){
   
   vcf = cbind(vcf, iid=gts)
 }
+colnames(vcf)[-c(1:9)] = paste0("iid", 1:ninds)
 
 # write VCF
 writeLines(header, "test.vcf")
