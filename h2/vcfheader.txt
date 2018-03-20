@@ -1,0 +1,5 @@
+##fileformat=VCFv4.2
+##FILTER=<ID=PASS,Description="All filters passed">
+##contig=<ID=22,length=51304566>
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##INFO=<ID=INFO,Number=1,Type=Float,Description="IMPUTE2 info score">
