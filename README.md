@@ -8,7 +8,7 @@ Basic package is phased VCFs -> `split_haplotypes + plink + gcta` -> heritabilit
 
 ## Usage
 ### Input and output formats
-Main input is a *nice-phase* VCF file. It is a standard VCF with phase information (`|`-separated genotypes in `GT` field), but with alleles aligned so that the left haplotype on parents is the transmitted one, and left haplotype in child is the maternally inherited one (i.e. M|P or T|U). See `input-output_file_formats.pdf` for more details.
+Main input is a *nice-phase* VCF file. It is a standard VCF with phase information (`|`-separated genotypes in `GT` field), but with alleles aligned so that the left haplotype on parents is the transmitted one, and left haplotype in child is the maternally inherited one (i.e. M|P or T|U). See `input-output_file_formats.pdf` for more details.  
 Pedigree information is provided in a file with at least 3 columns, indicating child ID, father ID, and mother ID, respectively. Any subsequent columns will be ignored. This format is equivalent to columns 2, 3, and 4 of PLINK's .fam files, after removing parents' rows.
 
 ### Running
@@ -33,6 +33,8 @@ plink --bfile outM1 --bim out.bim --fam outF.fam --keep-allele-order --recodeA -
 // TODO
 
 ## Current features
+- speed
+- PLINK- and GCTA-compatible output (.bed/.bim/.fam)
 - supports mixed trio, duo, and singleton input
 - supports full- and half-siblings
 - proper treatment multi-allelic sites
@@ -55,30 +57,4 @@ The script **check_phasing.R** checks haplotype alignment inside trios after SHA
 
 ### Haplotype flipper
 The script **flip_haplotypes.c** assigns SHAPEITv2-phased haplotypes to transmitted/untransmitted. Input must be trios, phased with duoHMM on. Then it is assumed that fetal haplotypes are paternal-left, maternal-right, and parental haplotypes are assigned transmission/non-transmission based on that. Input parental phase information is ignored.
-
-Current features:
-- supports mixed trio and duo input (resulting in half-calls)
-- safe against missing input genotypes
-- detects Mendelian errors
-- (almost) VCF-compatible structure of main output
-- runtime on the order of 1 millisecond per marker
-
-
-### Haplotype splitter
-The script **split_haplotypes.c** takes properly phased VCF files and produces .bed/.bim/.fam filesets for each haplotype.
-'Properly phased' here means that fetal haplotypes are maternal-left, paternal-right, and both parents are aligned transmitted-left, untransmitted-right. Provided an input file with childID|fatherID|motherID columns, this script splits fetal genotypes into M1 and P1 files ("transmitted"), and takes untransmitted haplotypes (i.e. right columns) of parents into M2 and P2 files.
-
-Current features:
-- PLINK- and GCTA-compatible output (.bed/.bim/.fam)
-- produces one .bim, three .fam, and four .bed files
-- safe against missing and weird input genotypes
-- allows mixed singleton, maternal and paternal data 
-- runtime on the order of 1 millisecond per marker
-
-Known limitations:
-- all families must include a fetus, i.e. singletons must be provided as "childID 0 0"
-- multigenerational families are not supported
-- siblings are only allowed if the parents' columns are also repeated in the VCF (so effectively not allowed)
-
-To include later: h1/h2/h3 haplotype splitting scripts, parent-of-origin analyses, genetic risk scores analyses, mendelian randomisation (with untransmitted haplotype).
 
