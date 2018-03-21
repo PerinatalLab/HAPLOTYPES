@@ -16,6 +16,10 @@ using namespace std;
 
 // USAGE: zcat onechrom.vcf.gz | ./split_haplotypes famfile logfile outstem
 
+
+// prepare I/O file streams
+FILE *ffp, *lfp, *ofM1, *ofM2, *ofP1, *ofP2, *ofB, *ofFM, *ofFP, *ofFF;
+
 // open file stream and do checks
 FILE *openOut(char *file, const char *suffix, const char *mode){
 	char *tmpstr = strdup(file);
@@ -24,6 +28,8 @@ FILE *openOut(char *file, const char *suffix, const char *mode){
 	if(stream == NULL){
 		fprintf(stderr, "ERROR: Can't create output file %s!\n", tmpstr);
 		exit(1);
+	} else {
+		fprintf(lfp, "Saving output to file %s.\n", tmpstr);
 	}
 	return(stream);
 }
@@ -41,13 +47,28 @@ void checkField(char *f){
         }
 }
 
+// check if sample was duplicated
+// and return 1 if it's new
+int checkDupl(int posGood, char **arrGood, char **arrBad1, char **arrBad2){
+	for(int j=0; j<posGood; j++){
+		if(strcmp(arrGood[posGood], arrGood[j])==0){
+			fprintf(lfp, "Warning: sample %s was repeated in .fam file\n", arrGood[posGood]);
+			return(0);
+		}
+		if(strcmp(arrGood[posGood], arrBad1[j])==0 || strcmp(arrGood[posGood], arrBad2[j])==0){
+			fprintf(stderr, "ERROR: sample %s has conflicting roles in .fam file\n", arrGood[posGood]);
+			exit(1);
+		}
+	}
+	return(1);
+}
 // shorten the types of family relations
 enum role {M=1, D, F};
 
 int main(int argc, char *argv[]) {
 	// INIT
 	// arg check
-	char *famFile, *logFile, *outFam, *outBim;
+	char *famFile, *logFile;
 	if(argc != 4){
 		fprintf(stderr, "ERROR: script needs 3 arguments, %d supplied.\n", argc-1);
 		exit(1);
@@ -55,9 +76,6 @@ int main(int argc, char *argv[]) {
 		famFile = argv[1];
 		logFile = argv[2];
 	}
-
-	// prepare I/O file streams
-	FILE *ffp, *lfp, *ofM1, *ofM2, *ofP1, *ofP2, *ofB, *ofFM, *ofFP, *ofFF;
 
 	ffp = fopen(famFile, "r");
 	lfp = fopen(logFile, "w");
@@ -99,7 +117,7 @@ int main(int argc, char *argv[]) {
 
                 fieldf = strsep(&linecp, "\t");
                 checkField(fieldf);
-                if(fieldf=="0"){
+                if(strcmp(fieldf, "0")==0){
                 	fprintf(stderr, "ERROR: missing fetal IDs not allowed\n");
                 	exit(1);
                 }
@@ -116,14 +134,13 @@ int main(int argc, char *argv[]) {
 
         // copy sample names to fixed C-style arrays
 	// and initialize array of family roles in VCF
-	int ntoread = fets.size();
-	char *momsc[ntoread], *dadsc[ntoread], *fetsc[ntoread];
-	int nmatduos = 0;
-	int npatduos = 0;
-	int nsingletons = 0;
+	int maxntrios = fets.size();
+	char *momsc[maxntrios], *dadsc[maxntrios], *fetsc[maxntrios];
+	int ntrios, nmatduos, npatduos, nsingletons, nsamples;
+	ntrios = nmatduos = npatduos = nsingletons = nsamples = 0;
 
 	fprintf(lfp, "Family info file read.\n");
-	for(int i=0; i<ntoread; i++){
+	for(int i=0; i<maxntrios; i++){
 		// sample names
 		momsc[i] = new char[moms[i].size() + 1];
 		dadsc[i] = new char[dads[i].size() + 1];
@@ -133,16 +150,25 @@ int main(int argc, char *argv[]) {
 		strcpy(fetsc[i], fets[i].c_str());
 
 		// check and log missings
+		// log sample repeats, check for conflicting roles
+		// count total samples
+		// (NOTE: multigenerational structures will result in errors)
 		if(strcmp(momsc[i], "0")==0 && strcmp(dadsc[i], "0")==0){
 			nsingletons++;
 		} else if (strcmp(momsc[i], "0")==0){
 			npatduos++;
+			nsamples += checkDupl(i, dadsc, momsc, fetsc);
 		} else if (strcmp(dadsc[i], "0")==0){
 			nmatduos++;
-		} 
+			nsamples += checkDupl(i, momsc, dadsc, fetsc);
+		} else {
+			ntrios++;
+			nsamples += checkDupl(i, dadsc, momsc, fetsc);
+			nsamples += checkDupl(i, momsc, dadsc, fetsc);
+		}
+		nsamples += checkDupl(i, fetsc, momsc, dadsc);
 	}
-	int ntrios = ntoread - nmatduos - npatduos - nsingletons;
-	fprintf(lfp, "Total amount of pregnancies found: %d\n", ntoread);
+	fprintf(lfp, "Total amount of pregnancies provided: %d\n", maxntrios);
 	fprintf(lfp, " amount of trios found: %d\n", ntrios);
 	fprintf(lfp, " amount of maternal duos found: %d\n", nmatduos);
 	fprintf(lfp, " amount of paternal duos found: %d\n", npatduos);
@@ -150,10 +176,9 @@ int main(int argc, char *argv[]) {
 
 
 	// OUTPUT PRINTING STARTS HERE
-	// NOTE: all samples in the VCF must be listed in fam file
-	// NOTE: currently does not allow repeated IDs
-	int nsamples = ntrios*3 + nmatduos*2 + npatduos*2 + nsingletons;
-	enum role roles[3*ntoread];
+	// NOTE: all samples in the VCF must be listed in fam file // ???
+	// roles initialized to max expected VCF size (=all samples in .fam unique)
+	enum role roles[nsamples];
 	int nlines = 0;
 	int nmiss = 0;
 
@@ -182,22 +207,25 @@ int main(int argc, char *argv[]) {
 				}
 				if(fieldn-9 > nsamples && strcmp(field, "")!=0){
 					fprintf(stderr, "ERROR: VCF has more samples than fam file (field %d)\n", fieldn);
+					printf("%s\n", field);
 					exit(1);
 				}
 
-				// check each ID with 'good' ids from fam file
+				// check each ID with ids from fam file
 				// store its role and print it to corresponding .fam output
-				// (NOTE: multigenerational structures will result in errors)
-				for(int i=0; i<ntoread; i++){
+				for(int i=0; i<maxntrios; i++){
 					if(strcmp(momsc[i], field)==0){
 						roles[fieldn-10] = M;
 						fprintf(ofFM, "%s\t%s\t0\t0\t0\t0\n", field, field);
+						break;
 					} else if(strcmp(dadsc[i], field)==0){
 						roles[fieldn-10] = D;
 						fprintf(ofFP, "%s\t%s\t0\t0\t0\t0\n", field, field);
+						break;
 					} else if(strcmp(fetsc[i], field)==0){
 						roles[fieldn-10] = F;
 						fprintf(ofFF, "%s\t%s\t0\t0\t0\t0\n", field, field);
+						break;
 					}
 				}
 				fieldn++;
@@ -216,6 +244,7 @@ int main(int argc, char *argv[]) {
 	for(int i=0; i<nsamples; i++){
 		if(roles[i]!=M && roles[i]!=D && roles[i]!=F){
 			fprintf(stderr, "ERROR: VCF column %d was not found in .fam file\n", i+10);
+			exit(1);
 		}
 	}
 	fprintf(lfp, "All VCF samples were found in .fam file.\n");
@@ -230,7 +259,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	// outbut buffer - 1 byte per 4 people
-	int nbytes = (ntoread + 3)/4;
+	int nbytes = (nsamples + 3)/4;
 	unsigned char outbufM1[nbytes], outbufM2[nbytes], outbufP1[nbytes], outbufP2[nbytes];
 	fprintf(lfp, "Limiting output buffers to %d bytes, + info fields.\n", nbytes);
 
@@ -244,7 +273,6 @@ int main(int argc, char *argv[]) {
 	// continue reading VCF: genotypes
 	char *snppos, *alref, *alalt;
 	unsigned char byteA, byteB, byteM1, byteM2, byteP1, byteP2;
-       	byteM1 = byteM2 = byteP1 = byteP2 = 0x00;
 	int pos1, posM2, posP2;
 
 	while( (nread = getline(&linev, &linesize, stdin)) > 0 ){
@@ -254,6 +282,7 @@ int main(int argc, char *argv[]) {
 		fixEndings(linev);
 		char *linecp2 = linev;
 		pos1 = posM2 = posP2 = 0;
+       		byteM1 = byteM2 = byteP1 = byteP2 = 0x00;
 
 		// process all GTs for this SNP
 		while((field = strsep(&linecp2, "\t"))[0] != '\0'){
@@ -326,7 +355,6 @@ int main(int argc, char *argv[]) {
 					outbufP1[nbytes-1] = byteM2;
 					outbufM2[nbytes-1] = byteP1;
 					outbufP2[nbytes-1] = byteP2;
-					byteM1 = byteM2 = byteP1 = byteP2 = 0x00;
 				}
 
 				i++;
