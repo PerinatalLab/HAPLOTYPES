@@ -4,7 +4,7 @@ Basic package is phased VCFs -> `split_haplotypes + plink + gcta` -> heritabilit
 
 ## Installation of basic package
 1. Download **GCTA** and **PLINK 1.9**. Linux x64 binaries are provided in `bin/`, for other systems look up their provider webpages.  
-2. Download `bin/split_haplotypes` (for Linux x64 systems), or compile it yourself from `split_haplotypes.c` as `gcc split_haplotypes.c -o split_haplotypes`.  
+2. Download `bin/split_haplotypes` (for Linux x64 systems), or compile it yourself from `split_haplotypes.c` as `g++ split_haplotypes.c -o bin/split_haplotypes`.  
 
 ## Usage
 ### Input and output formats
@@ -13,7 +13,7 @@ Pedigree information is provided in a file with at least 3 columns, indicating c
 
 ### Running
 Input (unzipped) VCF file is streamed from STDIN, so currently recommend using `zcat` on gzipped files. Arguments are: pedigree input file, log output file, stem for other output files.  
-So `zcat input.vcf.gz | ./split_haplotypes input.fam output.log out` will produce:
+So `zcat input.vcf.gz | ./bin/split_haplotypes input.fam output.log out` will produce:
 1. `output.log` - log file
 2. `outM1.bed` - maternal transmitted haplotypes
 3. `outM2.bed` - maternal untransmitted haplotypes

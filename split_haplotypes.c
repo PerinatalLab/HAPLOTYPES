@@ -136,8 +136,10 @@ int main(int argc, char *argv[]) {
 	// and initialize array of family roles in VCF
 	int maxntrios = fets.size();
 	char *momsc[maxntrios], *dadsc[maxntrios], *fetsc[maxntrios];
-	int ntrios, nmatduos, npatduos, nsingletons, nsamples;
-	ntrios = nmatduos = npatduos = nsingletons = nsamples = 0;
+	int ntrios, nmatduos, npatduos, nsingletons;
+	ntrios = nmatduos = npatduos = nsingletons = 0;
+	int nfets, ndads, nmoms;
+	nfets = ndads = nmoms = 0;
 
 	fprintf(lfp, "Family info file read.\n");
 	for(int i=0; i<maxntrios; i++){
@@ -157,17 +159,20 @@ int main(int argc, char *argv[]) {
 			nsingletons++;
 		} else if (strcmp(momsc[i], "0")==0){
 			npatduos++;
-			nsamples += checkDupl(i, dadsc, momsc, fetsc);
+			ndads += checkDupl(i, dadsc, momsc, fetsc);
 		} else if (strcmp(dadsc[i], "0")==0){
 			nmatduos++;
-			nsamples += checkDupl(i, momsc, dadsc, fetsc);
+			nmoms += checkDupl(i, momsc, dadsc, fetsc);
 		} else {
 			ntrios++;
-			nsamples += checkDupl(i, dadsc, momsc, fetsc);
-			nsamples += checkDupl(i, momsc, dadsc, fetsc);
+			ndads += checkDupl(i, dadsc, momsc, fetsc);
+			nmoms += checkDupl(i, momsc, dadsc, fetsc);
 		}
-		nsamples += checkDupl(i, fetsc, momsc, dadsc);
+		nfets += checkDupl(i, fetsc, momsc, dadsc);
 	}
+	int nsamples = nmoms + ndads + nfets;
+	fprintf(lfp, "Total numbers of unique samples: %d mothers, %d fathers, %d fetuses\n",
+			nmoms, ndads, nfets);
 	fprintf(lfp, "Total amount of pregnancies provided: %d\n", maxntrios);
 	fprintf(lfp, " amount of trios found: %d\n", ntrios);
 	fprintf(lfp, " amount of maternal duos found: %d\n", nmatduos);
@@ -230,6 +235,9 @@ int main(int argc, char *argv[]) {
 				}
 				fieldn++;
 			}
+			if(fieldn-10 < nsamples){
+				fprintf(stderr, "ERROR: VCF has less samples than fam file (field %d)\n", fieldn);
+			}
 
 			fprintf(lfp, "VCF header read. All %d specified samples were found.\n", nsamples);
 			break;
@@ -259,9 +267,11 @@ int main(int argc, char *argv[]) {
 	}
 
 	// outbut buffer - 1 byte per 4 people
-	int nbytes = (nsamples + 3)/4;
-	unsigned char outbufM1[nbytes], outbufM2[nbytes], outbufP1[nbytes], outbufP2[nbytes];
-	fprintf(lfp, "Limiting output buffers to %d bytes, + info fields.\n", nbytes);
+	nfets = (nfets + 3)/4;
+	nmoms = (nmoms + 3)/4;
+	ndads = (ndads + 3)/4;
+	unsigned char outbufM1[nfets], outbufM2[nmoms], outbufP1[nfets], outbufP2[ndads];
+	fprintf(lfp, "Limiting F/M/P output buffers to %d/%d/%d bytes, + info fields.\n", nfets, nmoms, ndads);
 
 	// magic bytes to identify file as PLINK's .bed:
 	char const magic[] = {0x6c, 0x1b, 0x01};
@@ -351,10 +361,10 @@ int main(int argc, char *argv[]) {
 
 				// on final samples - flush to bigger buffer
 				if(i == nsamples-1){
-					outbufM1[nbytes-1] = byteM1;
-					outbufP1[nbytes-1] = byteM2;
-					outbufM2[nbytes-1] = byteP1;
-					outbufP2[nbytes-1] = byteP2;
+					outbufM1[nfets-1] = byteM1;
+					outbufP1[nfets-1] = byteM2;
+					outbufM2[nmoms-1] = byteP1;
+					outbufP2[ndads-1] = byteP2;
 				}
 
 				i++;
