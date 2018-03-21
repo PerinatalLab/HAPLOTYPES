@@ -12,8 +12,8 @@ Main input is a *nice-phase* VCF file. It is a standard VCF with phase informati
 Pedigree information is provided in a file with at least 3 columns, indicating child ID, father ID, and mother ID, respectively. Any subsequent columns will be ignored. This format is equivalent to columns 2, 3, and 4 of PLINK's .fam files, after removing parents' rows.
 
 ### Running
-`zcat input.vcf.gz | ./split_haplotypes input.fam output.log out`
-will produce:
+Input (unzipped) VCF file is streamed from STDIN, so currently recommend using `zcat` on gzipped files. Arguments are: pedigree input file, log output file, stem for other output files.  
+So `zcat input.vcf.gz | ./split_haplotypes input.fam output.log out` will produce:
 1. `output.log` - log file
 2. `outM1.bed` - maternal transmitted haplotypes
 3. `outM2.bed` - maternal untransmitted haplotypes
