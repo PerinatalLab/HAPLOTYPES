@@ -22,7 +22,8 @@ FILE *ffp, *lfp, *ofM1, *ofM2, *ofP1, *ofP2, *ofB, *ofFM, *ofFP, *ofFF;
 
 // open file stream and do checks
 FILE *openOut(char *file, const char *suffix, const char *mode){
-	char *tmpstr = strdup(file);
+	char tmpstr[256];
+       	strcpy(tmpstr, file);
 	strcat(tmpstr, suffix);
 	FILE *stream = fopen(tmpstr, mode);
 	if(stream == NULL){
@@ -104,7 +105,9 @@ int main(int argc, char *argv[]) {
 
 	// READ
 	// reading variables:
-	char *line, *field, *linecp, *linef, *fieldf;
+	char *line = NULL;
+	char *linef = NULL;
+	char *field, *linecp, *fieldf;
 	size_t len = 0;
 	size_t lenf = 0;
 	ssize_t nread, nreadf;
@@ -201,7 +204,7 @@ int main(int argc, char *argv[]) {
 
 		// read header, parse sample ids
 		if(strncmp(line, "#", 1) == 0){
-			linecp = strdup(line);
+			linecp = strdupa(line);
 			fixEndings(linecp);
 
 			while((field = strsep(&linecp, "\t")) != NULL){
@@ -232,6 +235,9 @@ int main(int argc, char *argv[]) {
 						fprintf(ofFF, "%s\t%s\t0\t0\t0\t0\n", field, field);
 						break;
 					}
+					if(i==maxntrios-1 && strcmp(field, "0")!=0){
+						fprintf(lfp, "Warning: sample %s was not found in fam file\n", field);
+					}
 				}
 				fieldn++;
 			}
@@ -246,6 +252,13 @@ int main(int argc, char *argv[]) {
 		// a line doesn't start with #?
 		fprintf(stderr, "ERROR: malformed VCF file?");
 		exit(1);
+	}
+
+	// release memory as the .fam file is printed already
+	for(int i=0; i<maxntrios; i++){
+		delete[] dadsc[i];
+		delete[] momsc[i];
+		delete[] fetsc[i];
 	}
 
 	// check if all samples were found
@@ -264,7 +277,7 @@ int main(int argc, char *argv[]) {
 	if(linev == NULL){
 		fprintf(stderr, "ERROR: unable to allocate buffer");
 		exit(1);
-	}
+	}	
 
 	// outbut buffer - 1 byte per 4 people
 	nfets = (nfets + 3)/4;
@@ -410,7 +423,10 @@ int main(int argc, char *argv[]) {
 
 	free(linev);
 	free(line);
+	free(linecp);
+	free(linef);
 
+	fclose(ffp);
 	fclose(lfp);
 	fclose(ofM1);
 	fclose(ofM2);
