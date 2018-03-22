@@ -11,8 +11,8 @@ h2 = 0.5
 chr = 22
 
 # standard meta-info for VCF header
-header = readLines("vcfheader.txt")
-setwd("~/Documents/haplotypes/")
+header = readLines("~/Documents/gitrep/HAPLOTYPES/vcfheader.txt")
+setwd("~/Documents/gitrep/HAPLOTYPES/testcases/")
 
 # allele effects
 betas = rnorm(nsnps)
@@ -22,40 +22,39 @@ betas = rnorm(nsnps)
 vcf = data.frame(CHROM=chr, POS=1:nsnps,
                  ID=paste0("snp", 1:nsnps),
                  REF="A", ALT="B", QUAL=1, FILTER="PASS", INFO="INFO=1", FORMAT="GT")
-gtm = matrix(0, nsnps, ninds)
+mafs = runif(nsnps)
 
-# main simulation loop
-for(i in 1:ninds){
-  gts = rbinom(nsnps, 2, 0.5)
-  
-  gtm[,i] = gts
-  gts[gts==0] = "0|0"
-  gts[gts==1] = ifelse(runif(sum(gts==1))>0.5, "0|1", "1|0")
-  gts[gts==2] = "1|1"
-  
-  vcf = cbind(vcf, iid=gts)
-}
+# simulate dosage matrix
+dsm = t(sapply(mafs, function(m) rbinom(ninds, 2, m)))
+# change into genotypes
+gtm = matrix("0|0", nsnps, ninds)
+gtm[dsm==1] = sample(c("0|1", "1|0"), sum(dsm==1), replace=T)
+gtm[dsm==2] = "1|1"
+vcf = cbind(vcf, gtm)
 colnames(vcf)[-c(1:9)] = paste0("iid", 1:ninds)
 
+
 # write VCF
-writeLines(header, "test.vcf")
-cat("#", file="test.vcf", append=T)
-write.table(vcf, "test.vcf", T, col.names = T, row.names = F, quote=F, sep="\t")
+filestem = paste0("example_s", nsnps, "_i", ninds)
+writeLines(header, paste0(filestem, ".vcf"))
+cat("#", file=paste0(filestem, ".vcf"), append=T)
+write.table(vcf, paste0(filestem, ".vcf"), T, col.names = T, row.names = F, quote=F, sep="\t")
 
 # bgzip and tabix the VCF
-system("bgzip -f test.vcf; tabix test.vcf.gz")
+system(paste0("bgzip -f ", filestem, ".vcf; tabix ", filestem, ".vcf.gz"))
 
 ## fam file
 fam = as.data.frame(matrix(paste0("iid", 1:ninds), ncol=3))
-write.table(fam, "test.fam", col.names=F, row.names=F, quote=F, sep="\t")
+write.table(fam, paste0(filestem, ".fam"), col.names=F, row.names=F, quote=F, sep="\t")
 
-## pheno file
-pheno = data.frame(fid = 1:ninds, iid=colnames(vcf)[-c(1:9)])
-# create the genetic component of phenotype
-pheno$pheno = t(gtm) %*% betas
 
-# add environmental noise to produce the desired h2
-pheno$pheno = pheno$pheno + rnorm(ninds, 0, sqrt((1 - h2)/h2) * sd(pheno$pheno))
-
-write.table(pheno, "test.pheno", col.names = T, row.names = F, quote=F, sep="\t")
-
+# # pheno file
+# pheno = data.frame(fid = 1:ninds, iid=colnames(vcf)[-c(1:9)])
+# # create the genetic component of phenotype
+# pheno$pheno = t(gtm) %*% betas
+# 
+# # add environmental noise to produce the desired h2
+# pheno$pheno = pheno$pheno + rnorm(ninds, 0, sqrt((1 - h2)/h2) * sd(pheno$pheno))
+# 
+# write.table(pheno, "test.pheno", col.names = T, row.names = F, quote=F, sep="\t")
+# 
