@@ -9,7 +9,7 @@ Basic package is phased VCFs -> `split_haplotypes + plink + gcta` -> heritabilit
 ## Usage
 ### Input and output formats
 Main input is a *nice-phase* VCF file. It is a standard VCF with phase information (`|`-separated genotypes in `GT` field), but with alleles aligned so that the left haplotype on parents is the transmitted one, and left haplotype in child is the maternally inherited one (i.e. M|P or T|U). See `input-output_file_formats.pdf` for more details.  
-Pedigree information is provided in a file with at least 3 columns, indicating child ID, father ID, and mother ID, respectively. Any subsequent columns will be ignored. This format is equivalent to columns 2, 3, and 4 of PLINK's .fam files, after removing parents' rows.
+Pedigree information is provided in a file with at least 3 columns, indicating child ID, father ID, and mother ID, respectively. **Duos must have 0 for the missing parent ID.** Any subsequent columns will be ignored. This format is equivalent to columns 2, 3, and 4 of PLINK's .fam files, after removing parents' rows.
 
 ### Running
 For basic usage, change parameters in `split_haplotype_launcher.sh` (input and output file locations) and set all flags to `true`.
