@@ -3,8 +3,8 @@
 ## This script simulates VCF files for testing purposes.
 
 ##### PARAMETERS #####
-nsnps = 50
-ninds = 30
+nsnps = 3000
+ninds = 18000
 h2 = 0.5
 
 # doesn't mean anything
