@@ -1,6 +1,8 @@
 # HAPLOTYPES
 Collection of scripts for studies based on haplotyped trios/duos, in collaboration with CCHMC.
-Basic package is phased VCFs -> `split_haplotypes + plink + gcta` -> heritability estimates. Other scripts help prepare & check the phased VCFs, and provide simulation testing.
+Basic package implements the pipeline:  
+ phased VCFs -> `split_haplotypes + plink + gcta` -> heritability estimates  
+Other scripts help prepare & check the phased VCFs, pedigree files, and provide simulation testing.
 
 ## Installation of basic package
 1. Download **GCTA** and **PLINK 1.9**. Linux x64 binaries are provided in `bin/`, for other systems look up their provider webpages.  
@@ -9,10 +11,10 @@ Basic package is phased VCFs -> `split_haplotypes + plink + gcta` -> heritabilit
 ## Usage
 ### Input and output formats
 Main input is a *nice-phase* VCF file. It is a standard VCF with phase information (`|`-separated genotypes in `GT` field), but with alleles aligned so that the left haplotype on parents is the transmitted one, and left haplotype in child is the maternally inherited one (i.e. M|P or T|U). See `input-output_file_formats.pdf` for more details.  
-Pedigree information is provided in a file with at least 3 columns, indicating child ID, father ID, and mother ID, respectively. **Duos must have 0 for the missing parent ID.** Any subsequent columns will be ignored. This format is equivalent to columns 2, 3, and 4 of PLINK's .fam files, after removing parents' rows.
+Pedigree information is provided in a file with at least 3 columns, indicating child ID, father ID, and mother ID, respectively. **Duos must have 0 for the missing parent ID.** Any subsequent columns will be ignored. This format is equivalent to columns 2, 3, and 4 of PLINK's .fam files, after removing parents' rows. **All samples in the VCF file must be present in the pedigree file.**  
 
 ### Running
-For basic usage, change parameters in `split_haplotype_launcher.sh` (input and output file locations) and set all flags to `true`.
+For basic usage, change parameters in `split_haplotype_launcher.sh` (input and output file locations) and set the `convert`, `makegrm`, and `esth2` flags to `true`. Set the `haveMothers` or `haveFathers` to `false` if you have only duos of some kind. Set `plinkfam` to `true` if you have pedigree information in a PLINK-style .fam file (correct columns will be extracted, and parents' rows removed.)
 
 
 ### Running only `split_haplotypes`
@@ -52,6 +54,7 @@ Some example files of `s` markers and `i` individuals are provided in `testcases
 ## Known limitations
 - produced .bed files are aligned to ref/alt alleles, not to major/minor
 - child ID must be non-missing (singletons must be coded as children)
+- all samples in the VCF must be present in the input fam file at least once
 - half calls treated as missing
 - multi-generational trios will produce errors
 - no support for X chromosomes or other non-diploid genotypes

@@ -184,11 +184,12 @@ int main(int argc, char *argv[]) {
 
 
 	// OUTPUT PRINTING STARTS HERE
-	// NOTE: all samples in the VCF must be listed in fam file // ???
-	// roles initialized to max expected VCF size (=all samples in .fam unique)
+	// NOTE: all samples in the VCF must be listed in fam file 
+	// roles initialized to max expected VCF size (=all samples in .fam unique and present)
 	enum role roles[nsamples];
 	int nlines = 0;
 	int nmiss = 0;
+	nfets = ndads = nmoms = 0;
 
 	// read VCF meta-info and header:
 	fprintf(lfp, "Reading VCF file\n");
@@ -225,32 +226,42 @@ int main(int argc, char *argv[]) {
 					if(strcmp(momsc[i], field)==0){
 						roles[fieldn-10] = M;
 						fprintf(ofFM, "%s\t%s\t0\t0\t0\t0\n", field, field);
+						nmoms++;
 						break;
 					} else if(strcmp(dadsc[i], field)==0){
 						roles[fieldn-10] = D;
 						fprintf(ofFP, "%s\t%s\t0\t0\t0\t0\n", field, field);
+						ndads++;
 						break;
 					} else if(strcmp(fetsc[i], field)==0){
 						roles[fieldn-10] = F;
 						fprintf(ofFF, "%s\t%s\t0\t0\t0\t0\n", field, field);
+						nfets++;
 						break;
 					}
-					if(i==maxntrios-1 && strcmp(field, "0")!=0){
-						fprintf(lfp, "Warning: sample %s was not found in fam file\n", field);
+					if(i==maxntrios-1 && strcmp(field, "")!=0){
+						fprintf(stderr, "ERROR: VCF sample %s was not found in fam file\n", field);
+						exit(1);
 					}
 				}
 				fieldn++;
 			}
-			if(fieldn-10 < nsamples){
-				fprintf(stderr, "ERROR: VCF has less samples than fam file (field %d)\n", fieldn);
+			
+			if(nmoms+nfets+ndads == nsamples){
+				fprintf(lfp, "VCF header read. All %d samples from fam file were found.\n", nsamples);
+			} else if(nmoms+nfets+ndads < nsamples){
+				fprintf(lfp, "Warning: found only %d samples out of %d provided in fam file.\n",
+						nmoms+nfets+ndads, nsamples);
+			} else {
+				fprintf(stderr, "ERROR: found %d samples, expected only %d?\n",
+						nmoms+nfets+ndads, nsamples);
+				exit(1);
 			}
-
-			fprintf(lfp, "VCF header read. All %d specified samples were found.\n", nsamples);
 			break;
 		}
 
 		// a line doesn't start with #?
-		fprintf(stderr, "ERROR: malformed VCF file?");
+		fprintf(stderr, "ERROR: malformed VCF file?\n");
 		exit(1);
 	}
 
@@ -261,10 +272,11 @@ int main(int argc, char *argv[]) {
 		delete[] fetsc[i];
 	}
 
-	// check if all samples were found
+	// double-check if all roles were assigned correctly
+	nsamples = nmoms + nfets + ndads;
 	for(int i=0; i<nsamples; i++){
 		if(roles[i]!=M && roles[i]!=D && roles[i]!=F){
-			fprintf(stderr, "ERROR: VCF column %d was not found in .fam file\n", i+10);
+			fprintf(stderr, "ERROR: role at position %d was not assigned?\n", i+10);
 			exit(1);
 		}
 	}
@@ -275,7 +287,7 @@ int main(int argc, char *argv[]) {
 	size_t linesize = nsamples * 40;
 	linev = (char*)malloc(linesize * sizeof(char));
 	if(linev == NULL){
-		fprintf(stderr, "ERROR: unable to allocate buffer");
+		fprintf(stderr, "ERROR: unable to allocate buffer\n");
 		exit(1);
 	}	
 

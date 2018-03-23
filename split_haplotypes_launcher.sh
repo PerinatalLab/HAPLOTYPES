@@ -11,11 +11,12 @@ convert=true
 makegrm=true
 esth2=false
 
+plinkfam=true
 haveMothers=true
 haveFathers=true
 
 infile=~/Documents/gitrep/HAPLOTYPES/testcases/example_s50_i30.vcf.gz
-infam=~/Documents/gitrep/HAPLOTYPES/testcases/example_s50_i30.fam
+infam=~/Documents/gitrep/HAPLOTYPES/testcases/example_plinkstyle.fam
 logfile=~/Documents/haplotypes/splitlog
 outstem=~/Documents/haplotypes/split
 
@@ -31,6 +32,16 @@ then
 	echo "Compiling script..."
 	g++ split_haplotypes.c -o bin/split_haplotypes
 	echo "Compilation complete."
+fi
+
+if [ "$plinkfam" = true ];
+then
+	echo "Converting .fam to pedigree file..."
+	## drop row if this individual is ever mentioned as a parent
+	## (in effect, trims multigenerational pedigrees)
+	awk -F'\t' '{r[$2]=$2 FS $3 FS $4; p[$3]; m[$4]} END{for(i in r) if(!(i in p || i in m)) print r[i] }' ${infam} > ${outstem}_temp.fam
+	infam=${outstem}_temp.fam
+	echo "Pedigree file produced."
 fi
 
 if [ "$convert" = true ];

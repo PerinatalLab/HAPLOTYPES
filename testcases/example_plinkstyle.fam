@@ -1,0 +1,16 @@
+99	iid444	0	0
+0	iid1	iid11	iid21
+1	iid2	0	iid22
+4	iid4	iid14	iid24	extra	info
+5	iid5	iid15	iid25	random info
+5	iid15	0	0	parents'
+5	iid25	0	0	parents'
+3	iid16	iid99	iid98	older generation
+3	iid6	iid16	iid26
+6	iid7	iid17	iid27
+7	iid8	iid18	iid28
+9	iid9	iid19	iid29
+8	iid10	iid20	iid30
+10	iid12	0	0
+11	iid77	0	0
+12	iid3	iid13	iid23
