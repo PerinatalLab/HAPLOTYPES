@@ -1,20 +1,21 @@
 #!/bin/bash
 
-set -e
-
 ## This script is a wrapper around split_haplotypes.c and subsequent PLINK/GCTA usage.
 
 ###################
 ###   OPTIONS   ###
 ###################
 
-compile=true;
-convert=true;
-makegrm=true;
-esth2=true;
+compile=true
+convert=true
+makegrm=true
+esth2=false
 
-infile=~/Documents/gitrep/HAPLOTYPES/testcases/example_s3000_i18000.vcf.gz
-infam=~/Documents/gitrep/HAPLOTYPES/testcases/example_s3000_i18000.fam
+haveMothers=true
+haveFathers=true
+
+infile=~/Documents/gitrep/HAPLOTYPES/testcases/example_s50_i30.vcf.gz
+infam=~/Documents/gitrep/HAPLOTYPES/testcases/example_s50_i30.fam
 logfile=~/Documents/haplotypes/splitlog
 outstem=~/Documents/haplotypes/split
 
