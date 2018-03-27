@@ -4,7 +4,7 @@
 
 ##### PARAMETERS #####
 nsnps = 3000
-ninds = 18000
+ninds = 6000
 h2 = 0.5
 
 # doesn't mean anything
@@ -48,13 +48,14 @@ fam = as.data.frame(matrix(paste0("iid", 1:ninds), ncol=3))
 write.table(fam, paste0(filestem, ".fam"), col.names=F, row.names=F, quote=F, sep="\t")
 
 
-# # pheno file
-# pheno = data.frame(fid = 1:ninds, iid=colnames(vcf)[-c(1:9)])
-# # create the genetic component of phenotype
-# pheno$pheno = t(gtm) %*% betas
-# 
-# # add environmental noise to produce the desired h2
-# pheno$pheno = pheno$pheno + rnorm(ninds, 0, sqrt((1 - h2)/h2) * sd(pheno$pheno))
-# 
-# write.table(pheno, "test.pheno", col.names = T, row.names = F, quote=F, sep="\t")
-# 
+# pheno file
+pheno = data.frame(fid = colnames(vcf)[-c(1:9)])
+pheno$iid = pheno$fid
+# create the genetic component of phenotype
+pheno$pheno = t(dsm) %*% betas
+
+# add environmental noise to produce the desired h2
+pheno$pheno = pheno$pheno + rnorm(ninds, 0, sqrt((1 - h2)/h2) * sd(pheno$pheno))
+
+write.table(pheno, paste0(filestem, ".pheno"), col.names = F, row.names = F, quote=F, sep="\t")
+
