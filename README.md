@@ -6,7 +6,7 @@ Other scripts help prepare & check the phased VCFs, pedigree files, and provide 
 
 ## Installation of basic package
 1. Download **GCTA** and **PLINK 1.9**. Linux x64 binaries are provided in `bin/`, for other systems look up their provider webpages.  
-2. Download `bin/split_haplotypes` (for Linux x64 systems), or compile it yourself from `split_haplotypes.c` as `g++ split_haplotypes.c -o bin/split_haplotypes`.  
+2. Download `bin/split_haplotypes` and `bin/divide_grm` (for Linux x64 systems), or the source files `split_haplotypes.c` and `divide_grm.c`.  
 
 ## Usage
 ### Input and output formats
@@ -34,6 +34,12 @@ So `zcat input.vcf.gz | ./bin/split_haplotypes input.fam output.log out` will pr
 Produced files can be directly passed to PLINK/GCTA, for example:
 ```
 plink --bfile outM1 --bim out.bim --fam outF.fam --keep-allele-order --recodeA --out recoded
+```
+
+Note that `0/2` haplotype encoding makes PLINK overestimate GRM by a factor of 2 (i.e. expected value on the diagonal is 2), so we provide a simple `divide_grm.c` script to adjust a binary haplotype-based GRM:
+```
+# Arguments: inputFile outputFile nSamples
+./divide_grm M1.grm.bin M1adjusted.grm.bin 2000
 ```
 
 ### Advanced usage
