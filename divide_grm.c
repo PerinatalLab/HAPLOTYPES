@@ -16,7 +16,7 @@ int main(int argc, char *argv[]){
 	infile = fopen(argv[1], "rb");
 	outfile = fopen(argv[2], "wb");
 	if(infile == NULL || outfile == NULL){
-		fprintf(stderr, "ERROR: couldn't input/output files\n");
+		fprintf(stderr, "ERROR: couldn't open input/output files\n");
 		exit(1);
 	}
 	int n = atoi(argv[3]);
