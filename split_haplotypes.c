@@ -221,16 +221,17 @@ int main(int argc, char *argv[]) {
 				}
 
 				// check each ID with ids from fam file
-				// store its role and print it to corresponding .fam output
+				// store its role and print THE FETAL ID to corresponding .fam output
+				// so all .fams will have FETAL IDs, but M.fam and P.fam can be smaller than F.fam
 				for(int i=0; i<maxntrios; i++){
 					if(strcmp(momsc[i], field)==0){
 						roles[fieldn-10] = M;
-						fprintf(ofFM, "%s\t%s\t0\t0\t0\t0\n", field, field);
+						fprintf(ofFM, "%s\t%s\t0\t0\t0\t0\n", fetsc[i], fetsc[i]);
 						nmoms++;
 						break;
 					} else if(strcmp(dadsc[i], field)==0){
 						roles[fieldn-10] = D;
-						fprintf(ofFP, "%s\t%s\t0\t0\t0\t0\n", field, field);
+						fprintf(ofFP, "%s\t%s\t0\t0\t0\t0\n", fetsc[i], fetsc[i]);
 						ndads++;
 						break;
 					} else if(strcmp(fetsc[i], field)==0){
