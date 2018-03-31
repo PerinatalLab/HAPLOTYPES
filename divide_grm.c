@@ -3,14 +3,14 @@
 
 // This script is for adjusting PLINK's GRMs
 // to account for having 0/2 haplotype encoding.
-// I.e. it divides by 2.
+// I.e. it divides by 2 or some other division constant.
 
-// USAGE: ./divide_grm infile.grm.bin outfile.grm.bin nsamples
+// USAGE: ./divide_grm infile.grm.bin outfile.grm.bin nsamples divisor
 
 int main(int argc, char *argv[]){
 	FILE *infile, *outfile;
-	if(argc != 4){
-		fprintf(stderr, "ERROR: script needs 3 arguments, %d supplied.\n", argc-1);
+	if(argc != 5){
+		fprintf(stderr, "ERROR: script needs 4 arguments, %d supplied.\n", argc-1);
 		exit(1);
 	}
 	infile = fopen(argv[1], "rb");
@@ -20,6 +20,7 @@ int main(int argc, char *argv[]){
 		exit(1);
 	}
 	int n = atoi(argv[3]);
+	float divc = atof(argv[4]);
 
 	// buffer of 250 people, 4 bytes each
 	int b = 250;
@@ -31,13 +32,13 @@ int main(int argc, char *argv[]){
 		fread(linebuf, b, 4, infile);
 
 		for(int j=0; j<b; j++){
-			linebuf[j] = linebuf[j]/2;
+			linebuf[j] = linebuf[j]/divc;
 		}
 		fwrite(linebuf, b, 4, outfile);
 	}
 	fread(linebuf, tot % b, 4, infile);
 	for(int j=0; j < tot % b; j++){
-		linebuf[j] = linebuf[j]/2;
+		linebuf[j] = linebuf[j]/divc;
 	}
 	fwrite(linebuf, tot % b, 4, outfile);
 
