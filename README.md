@@ -26,9 +26,8 @@ So `zcat input.vcf.gz | ./bin/split_haplotypes input.fam output.log out` will pr
 4. `outP1.bed` - paternal transmitted haplotypes
 5. `outP2.bed` - paternal untransmitted haplotypes
 6. `out.bim` - one marker map
-7. `outF.fam` - list of children (corresponds to `outM1.bed` and `outP1.bed`)
-8. `outM.fam` - list of mothers (corresponds to `outM2.bed`)
-9. `outP.fam` - list of fathers (corresponds to `outP2.bed`)
+7. `outF.fam`, `outM.fam`, `outP.fam` - list of children corresponding to `outM1.bed` and `outP1.bed`, `outM2.bed`, `outP2.bed`, respectively
+8. `outM.tokeep`, `outP.tokeep` - list of mothers and fathers (to keep from VCF)
 
 ### Downstream usage
 Produced files can be directly passed to PLINK/GCTA, for example:
@@ -38,8 +37,8 @@ plink --bfile outM1 --bim out.bim --fam outF.fam --keep-allele-order --recodeA -
 
 Note that `0/2` haplotype encoding makes PLINK overestimate GRM by a factor of 2 (i.e. expected value on the diagonal is 2), so we provide a simple `divide_grm.c` script to adjust a binary haplotype-based GRM:
 ```
-# Arguments: inputFile outputFile nSamples
-./divide_grm M1.grm.bin M1adjusted.grm.bin 2000
+# Arguments: inputFile outputFile nSamples divisor
+./divide_grm M1.grm.bin M1adjusted.grm.bin 2000 2
 ```
 
 ### Advanced usage
@@ -61,8 +60,9 @@ Some example files of `s` markers and `i` individuals are provided in `testcases
 - produced .bed files are aligned to ref/alt alleles, not to major/minor
 - child ID must be non-missing (singletons must be coded as children)
 - all samples in the VCF must be present in the input fam file at least once
-- half calls treated as missing
 - multi-generational trios will produce errors
+- auto-generated .fam and .tokeep files might be wrong under weird pedigrees - recommend checking them
+- half calls treated as missing
 - no support for X chromosomes or other non-diploid genotypes
 
 
@@ -77,3 +77,5 @@ The script **check_phasing.R** checks haplotype alignment inside trios after SHA
 ### Haplotype flipper
 The script **flip_haplotypes.c** assigns SHAPEITv2-phased haplotypes to transmitted/untransmitted. Input must be trios, phased with duoHMM on. Then it is assumed that fetal haplotypes are paternal-left, maternal-right, and parental haplotypes are assigned transmission/non-transmission based on that. Input parental phase information is ignored.
 
+### GRM divider
+`./divide_grm` can also be used to adjust for confounding, by replacing 2 with the true variance of genotypes, i.e. `1+Fstat`.

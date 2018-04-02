@@ -18,7 +18,7 @@ using namespace std;
 
 
 // prepare I/O file streams
-FILE *ffp, *lfp, *ofM1, *ofM2, *ofP1, *ofP2, *ofB, *ofFM, *ofFP, *ofFF;
+FILE *ffp, *lfp, *ofM1, *ofM2, *ofP1, *ofP2, *ofB, *ofFM, *ofFP, *ofFF, *ofKM, *ofKP;
 
 // open file stream and do checks
 FILE *openOut(char *file, const char *suffix, const char *mode){
@@ -98,6 +98,9 @@ int main(int argc, char *argv[]) {
 	ofFM = openOut(argv[3], "M.fam", "w");
 	ofFP = openOut(argv[3], "P.fam", "w");
 	ofFF = openOut(argv[3], "F.fam", "w");
+
+	ofKM = openOut(argv[3], "M.tokeep", "w");
+	ofKP = openOut(argv[3], "P.tokeep", "w");
 
 	fprintf(lfp, "Haplotype splitter v1\n");
 	fprintf(lfp, "Starting log for run.\n");
@@ -223,14 +226,17 @@ int main(int argc, char *argv[]) {
 				// check each ID with ids from fam file
 				// store its role and print THE FETAL ID to corresponding .fam output
 				// so all .fams will have FETAL IDs, but M.fam and P.fam can be smaller than F.fam
+				// K (--keep) files will have correct parent IDs for separating them
 				for(int i=0; i<maxntrios; i++){
 					if(strcmp(momsc[i], field)==0){
 						roles[fieldn-10] = M;
+						fprintf(ofKM, "%s\t%s\t0\t0\t0\t0\n", momsc[i], momsc[i]);
 						fprintf(ofFM, "%s\t%s\t0\t0\t0\t0\n", fetsc[i], fetsc[i]);
 						nmoms++;
 						break;
 					} else if(strcmp(dadsc[i], field)==0){
 						roles[fieldn-10] = D;
+						fprintf(ofKP, "%s\t%s\t0\t0\t0\t0\n", dadsc[i], dadsc[i]);
 						fprintf(ofFP, "%s\t%s\t0\t0\t0\t0\n", fetsc[i], fetsc[i]);
 						ndads++;
 						break;
@@ -449,6 +455,8 @@ int main(int argc, char *argv[]) {
 	fclose(ofFM);
 	fclose(ofFP);
 	fclose(ofFF);
+	fclose(ofKM);
+	fclose(ofKP);
 
 	return(0);
 }
