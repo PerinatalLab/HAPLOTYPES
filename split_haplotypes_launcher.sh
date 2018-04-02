@@ -1,6 +1,7 @@
 #!/bin/bash
 
 ## This script is a wrapper around split_haplotypes.c and subsequent PLINK/GCTA usage.
+# USAGE: ./split_haplotypes_launcher.sh analysisName workingDir
 
 ###################
 ###   OPTIONS   ###
@@ -18,11 +19,15 @@ haveFathers=true
 # constant for genotype-based GRM adjustment
 divc=1
 
-infile=~/Documents/gitrep/HAPLOTYPES/testcases/example_s3000_i6000.vcf.gz
-infam=~/Documents/gitrep/HAPLOTYPES/testcases/example_s3000_i6000.fam
-inpheno=~/Documents/gitrep/HAPLOTYPES/testcases/example_s3000_i6000.pheno
+# infile=~/Documents/gitrep/HAPLOTYPES/testcases/example_s3000_i6000.vcf.gz
+# infam=~/Documents/gitrep/HAPLOTYPES/testcases/example_s3000_i6000.fam
+# inpheno=~/Documents/gitrep/HAPLOTYPES/testcases/example_s3000_i6000.pheno
 
-workdir=~/Documents/haplotypes/tmp/
+# workdir=~/Documents/haplotypes/tmp/
+workdir=$2
+infile=${workdir}example_s3000_i6000.vcf.gz
+infam=${workdir}example_s3000_i6000.fam
+inpheno=${workdir}example_s3000_i6000.pheno
 allres=~/Documents/haplotypes/allresults.txt
 
 
@@ -38,7 +43,10 @@ scriptdir=$( cd "$(dirname "${BASH_SOURCE[0]}")" ; pwd -P )
 cd "$scriptdir"
 
 # initialize result file header
-sed -i 's/^$/Source\tVariance\tSE\tAnalysis\tMethod/' ${allres}
+if [[ ! -f ${allres} ]]
+then
+	echo -e "Source\tVariance\tSE\tAnalysis\tMethod" > ${allres}
+fi
 
 mkdir -p ${workdir}
 outstem=${workdir}split
@@ -62,7 +70,7 @@ function adjustGRM {
 function parseRes {
 	awk -v OFS="\t" -v NAME=$2 '/Source\tVariance/{p=1; next}
 		$0~/^$/ && p==1{exit}
-		p==1{print $0, NAME, "AI-REML"}' $1 > ${allres}
+		p==1{print $0, NAME, "AI-REML"}' $1 >> ${allres}
 }
 
 
@@ -130,7 +138,11 @@ then
 		adjustGRM ${outstem}M2 $nlines 2
 	
 		echo "Producing maternal-genotype GRM..."
+		# note: converting all IDs to fetal
 		./bin/plink --vcf ${infile} --keep ${outstem}M.tokeep \
+			--make-bed --out ${outstem}MG
+		./bin/plink --bfile ${outstem}MG \
+			--update-ids ${outstem}M.tokeep \
 			--make-grm-bin --out ${outstem}MG
 		adjustGRM ${outstem}MG $nlines $divc
 	fi
@@ -143,7 +155,11 @@ then
 		adjustGRM ${outstem}P2 $nlines 2
 
 		echo "Producing paternal-genotype GRM..."
+		# note: converting all IDs to fetal
 		./bin/plink --vcf ${infile} --keep ${outstem}P.tokeep \
+			--make-bed --out ${outstem}PG
+		./bin/plink --bfile ${outstem}PG \
+			--update-ids ${outstem}P.tokeep \
 			--make-grm-bin --out ${outstem}PG
 		adjustGRM ${outstem}PG $nlines $divc
 	fi
@@ -154,51 +170,60 @@ fi
 if [ "$esth2" = true ];
 then
 	echo "Estimating h2 from fetal-genotype GRM..."
-	./bin/gcta64 --reml --grm ${outstem}FG --pheno ${inpheno} --out ${finalout}
+	./bin/gcta64 --reml --reml-no-constrain \
+		--grm ${outstem}FG --pheno ${inpheno} --out ${finalout}
 	parseRes ${finalout}.log ${1}FG
 
 	echo "Estimating h2 from transmitted haplotype GRMs..."
 	echo -e "${outstem}M1\n${outstem}P1" > ${grmlist}
-	./bin/gcta64 --reml --mgrm ${grmlist} --pheno ${inpheno} --out ${finalout}
+	./bin/gcta64 --reml --reml-no-constrain \
+		--mgrm ${grmlist} --pheno ${inpheno} --out ${finalout}
 	parseRes ${finalout}.log ${1}M1P1
 	
 	if [ "$haveMothers" = true ];
 	then
 		echo "Estimating h2 from maternal-genotype GRM..."
-		./bin/gcta64 --reml --grm ${outstem}MG --pheno ${inpheno} --out ${finalout}
+		./bin/gcta64 --reml --reml-no-constrain \
+			--grm ${outstem}MG --pheno ${inpheno} --out ${finalout}
 		parseRes ${finalout}.log ${1}MG
 
 		echo "Estimating h2 from maternal haplotype GRMs..."
 		echo -e "${outstem}M1\n${outstem}M2" > ${grmlist}
-		./bin/gcta64 --reml --mgrm ${grmlist} --pheno ${inpheno} --out ${finalout}
+		./bin/gcta64 --reml --reml-no-constrain \
+			--mgrm ${grmlist} --pheno ${inpheno} --out ${finalout}
 		parseRes ${finalout}.log ${1}M1M2
 
 		echo "Estimating h2 from maternal and fetal haplotype GRMs..."
 		echo "${outstem}P1" >> ${grmlist}
-		./bin/gcta64 --reml --mgrm ${grmlist} --pheno ${inpheno} --out ${finalout}
+		./bin/gcta64 --reml --reml-no-constrain \
+			--mgrm ${grmlist} --pheno ${inpheno} --out ${finalout}
 		parseRes ${finalout}.log ${1}M1M2P1
 	fi
 	if [ "$haveFathers" = true ];
 	then
 		echo "Estimating h2 from paternal-genotype GRM..."
-		./bin/gcta64 --reml --grm ${outstem}PG --pheno ${inpheno} --out ${finalout}
+		./bin/gcta64 --reml --reml-no-constrain \
+			--grm ${outstem}PG --pheno ${inpheno} --out ${finalout}
 		parseRes ${finalout}.log ${1}PG
 
-		echo "Estimating h2 from saternal haplotype GRMs..."
+		echo "Estimating h2 from paternal haplotype GRMs..."
 		echo -e "${outstem}P1\n${outstem}P2" > ${grmlist}
-		./bin/gcta64 --reml --mgrm ${grmlist} --pheno ${inpheno} --out ${finalout}
+		./bin/gcta64 --reml --reml-no-constrain \
+			--mgrm ${grmlist} --pheno ${inpheno} --out ${finalout}
 		parseRes ${finalout}.log ${1}P1P2
 
 		echo "Estimating h2 from paternal and fetal haplotype GRMs..."
 		echo "${outstem}M1" >> ${grmlist}
-		./bin/gcta64 --reml --mgrm ${grmlist} --pheno ${inpheno} --out ${finalout}
+		./bin/gcta64 --reml --reml-no-constrain \
+			--mgrm ${grmlist} --pheno ${inpheno} --out ${finalout}
 		parseRes ${finalout}.log ${1}P1P2M1
 
 		if [ "$haveMothers" = true ];
 		then
 			echo "Estimating h2 from all 4 haplotype GRMs..."
 			echo "${outstem}M2" >> ${grmlist}
-			./bin/gcta64 --reml --mgrm ${grmlist} --pheno ${inpheno} --out ${finalout}
+			./bin/gcta64 --reml --reml-no-constrain \
+				--mgrm ${grmlist} --pheno ${inpheno} --out ${finalout}
 			parseRes ${finalout}.log ${1}M1M2P1P2
 		fi
 	fi

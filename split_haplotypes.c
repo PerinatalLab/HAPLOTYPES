@@ -230,13 +230,15 @@ int main(int argc, char *argv[]) {
 				for(int i=0; i<maxntrios; i++){
 					if(strcmp(momsc[i], field)==0){
 						roles[fieldn-10] = M;
-						fprintf(ofKM, "%s\t%s\t0\t0\t0\t0\n", momsc[i], momsc[i]);
+						fprintf(ofKM, "%s\t%s\t%s\t%s\n",
+								momsc[i], momsc[i], fetsc[i], fetsc[i]);
 						fprintf(ofFM, "%s\t%s\t0\t0\t0\t0\n", fetsc[i], fetsc[i]);
 						nmoms++;
 						break;
 					} else if(strcmp(dadsc[i], field)==0){
 						roles[fieldn-10] = D;
-						fprintf(ofKP, "%s\t%s\t0\t0\t0\t0\n", dadsc[i], dadsc[i]);
+						fprintf(ofKP, "%s\t%s\t%s\t%s\n",
+								dadsc[i], dadsc[i], fetsc[i], fetsc[i]);
 						fprintf(ofFP, "%s\t%s\t0\t0\t0\t0\n", fetsc[i], fetsc[i]);
 						ndads++;
 						break;
