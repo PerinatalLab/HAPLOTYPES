@@ -35,7 +35,7 @@ allres=~/Documents/haplotypes/allresults.txt
 ###   SCRIPT   ###
 ##################
 
-set -e
+# set -e
 
 ## change dir to allow relative paths further.
 ## not entirely safe, but at least parses symlinks

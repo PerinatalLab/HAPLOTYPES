@@ -11,7 +11,9 @@ h2 = 0.5
 # geneff="f"
 # provide number to fix, or other value to generate runif()
 # setMaf = 0.5
-# p(heterozygote phase = 1|0)
+# p(phasing error | double het)
+# phaseErr = 0.1
+# p(phasing error towards 1|0)
 # phaseBias = 0.5
 # fraction of heterozygotes to convert to homozygotes
 # corrBias = 0
@@ -39,21 +41,39 @@ if(is.numeric(setMaf)){
   mafs = runif(nsnps)  
 }
 
-# simulate dosage matrix
-dsm = t(sapply(mafs, function(m) rbinom(ninds, 2, m)))
-# introduce confounding (reduces heterozygosity)
-het = dsm==1
-toHom = runif(dsm)
-dsm[het & toHom < corrBias/2] = 0
-dsm[het & toHom > 1-corrBias/2] = 2
+# simulate dosage matrices for each paternal haplotype
+dsmM1 = t(sapply(mafs, function(m) rbinom(ninds/3, 1, m)))
+dsmM2 = t(sapply(mafs, function(m) rbinom(ninds/3, 1, m)))
+dsmP1 = t(sapply(mafs, function(m) rbinom(ninds/3, 1, m)))
+dsmP2 = t(sapply(mafs, function(m) rbinom(ninds/3, 1, m)))
+
+# # introduce confounding (reduces heterozygosity)
+# het = dsm==1
+# toHom = runif(dsm)
+# dsm[het & toHom < corrBias/2] = 0
+# dsm[het & toHom > 1-corrBias/2] = 2
 
 # change into genotypes
-gtm = matrix("0|0", nsnps, ninds)
-gtm[dsm==1] = sample(c("0|1", "1|0"), sum(dsm==1), replace=T, prob=c(1-phaseBias, phaseBias))
-gtm[dsm==2] = "1|1"
-vcf = cbind(vcf, gtm)
-colnames(vcf)[-c(1:9)] = paste0("iid", 1:ninds)
+gtmF = matrix(paste(dsmM1, dsmP2, sep="|"), nsnps, ninds)
+gtmM = matrix(paste(dsmM1, dsmM2, sep="|"), nsnps, ninds)
+gtmP = matrix(paste(dsmP1, dsmP2, sep="|"), nsnps, ninds)
 
+# introduce phasing errors and bias
+toflip = which(dsmM1==0 & dsmM2==1 & dsmP1==1 & dsmP2==0)
+toflip = toflip[runif(toflip) < phaseErr * phaseBias]
+gtmF[toflip] = "1|0"
+gtmM[toflip] = "1|0"
+gtmP[toflip] = "0|1"
+
+toflip = which(dsmM1==1 & dsmM2==0 & dsmP1==0 & dsmP2==1)
+toflip = toflip[runif(toflip) < phaseErr * (1-phaseBias)]
+gtmF[toflip] = "0|1"
+gtmM[toflip] = "0|1"
+gtmP[toflip] = "1|0"
+
+# gtms are converted to VCF and NOT USED to calculate true phenotype
+vcf = cbind(vcf, gtmF, gtmP, gtmM)
+colnames(vcf)[-c(1:9)] = paste0("iid", 1:ninds)
 
 # write VCF
 filestem = paste0("example_s", nsnps, "_i", ninds)
@@ -72,15 +92,15 @@ write.table(fam, paste0(filestem, ".fam"), col.names=F, row.names=F, quote=F, se
 # pheno file
 pheno = data.frame(fid = colnames(vcf)[-c(1:9)])
 pheno$iid = pheno$fid
-# create the genetic component of phenotype
-pheno$pheno = t(dsm) %*% betas
 
+# create the genetic component of phenotype
+# USING DSMs (untouched by phasing errors etc.)
 if(geneff=="f"){
-	pheno = pheno[pheno$iid %in% fam[,1],]
+  pheno$pheno = t(dsmM1) %*% betas + t(dsmP1) %*% betas
 } else if (geneff=="m"){
-	pheno = pheno[pheno$iid %in% fam[,2],]
-	pheno$iid = fam[,1]
-	pheno$fid = pheno$iid
+  pheno$pheno = t(dsmM1) %*% betas + t(dsmM2) %*% betas
+} else if (geneff=="p"){
+  pheno$pheno = t(dsmP1) %*% betas + t(dsmP2) %*% betas
 }
 
 # add environmental noise to produce the desired h2
