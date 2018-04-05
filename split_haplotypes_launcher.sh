@@ -13,8 +13,8 @@ makegrm=true
 esth2=true
 
 plinkfam=false
-haveMothers=true
-haveFathers=true
+haveMothers=false
+haveFathers=false
 
 # constant for genotype-based GRM adjustment
 divc=1
@@ -25,10 +25,10 @@ divc=1
 
 # workdir=~/Documents/haplotypes/tmp/
 workdir=$2
-infile=${workdir}example_s3000_i6000.vcf.gz
-infam=${workdir}example_s3000_i6000.fam
-inpheno=${workdir}example_s3000_i6000.pheno
-allres=~/Documents/haplotypes/allresults.txt
+infile=${workdir}example_s3000_i3000.vcf.gz
+infam=${workdir}example_s3000_i3000.fam
+inpheno=${workdir}example_s3000_i3000.pheno
+allres=~/Documents/haplotypes/allresults_ind.txt
 
 
 ##################
