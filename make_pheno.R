@@ -54,9 +54,9 @@ dsmP2 = t(sapply(mafs, function(m) rbinom(ninds/3, 1, m)))
 # dsm[het & toHom > 1-corrBias/2] = 2
 
 # change into genotypes
-gtmF = matrix(paste(dsmM1, dsmP2, sep="|"), nsnps, ninds)
-gtmM = matrix(paste(dsmM1, dsmM2, sep="|"), nsnps, ninds)
-gtmP = matrix(paste(dsmP1, dsmP2, sep="|"), nsnps, ninds)
+gtmF = matrix(paste(dsmM1, dsmP1, sep="|"), nsnps, ninds/3)
+gtmM = matrix(paste(dsmM1, dsmM2, sep="|"), nsnps, ninds/3)
+gtmP = matrix(paste(dsmP1, dsmP2, sep="|"), nsnps, ninds/3)
 
 # introduce phasing errors and bias
 toflip = which(dsmM1==0 & dsmM2==1 & dsmP1==1 & dsmP2==0)
@@ -90,7 +90,7 @@ write.table(fam, paste0(filestem, ".fam"), col.names=F, row.names=F, quote=F, se
 
 
 # pheno file
-pheno = data.frame(fid = colnames(vcf)[-c(1:9)])
+pheno = data.frame(fid = colnames(vcf)[10:(9+ninds/3)])
 pheno$iid = pheno$fid
 
 # create the genetic component of phenotype
