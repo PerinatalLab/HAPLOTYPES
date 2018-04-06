@@ -12,11 +12,11 @@ h2 = 0.5
 # provide number to fix, or other value to generate runif()
 # setMaf = 0.5
 # p(phasing error | double het)
-# phaseErr = 0.1
+phaseErr = 0
 # p(phasing error towards 1|0)
-# phaseBias = 0.5
+phaseBias = 0.5
 # fraction of heterozygotes to convert to homozygotes
-# corrBias = 0
+# confRate = 0
 
 # doesn't mean anything
 chr = 22
@@ -49,23 +49,40 @@ dsmP1 = t(sapply(mafs, function(m) rbinom(ninds, 1, m)))
 
 # change into genotypes
 gtmF = matrix(paste(dsmM1, dsmP1, sep="|"), nsnps, ninds)
-# gtmM = matrix(paste(dsmM1, dsmM2, sep="|"), nsnps, ninds/3)
-# gtmP = matrix(paste(dsmP1, dsmP2, sep="|"), nsnps, ninds/3)
 
 # introduce phasing errors and bias
 toflip = which(dsmM1==0 & dsmP1==1)
+het01 = toflip
 toflip = toflip[runif(toflip) < phaseErr * phaseBias]
 gtmF[toflip] = "1|0"
 
 toflip = which(dsmM1==1 & dsmP1==0)
+het10 = toflip
 toflip = toflip[runif(toflip) < phaseErr * (1-phaseBias)]
 gtmF[toflip] = "0|1"
 
 # introduce confounding (reduces heterozygosity)
-# het = toflip
-# toHom = runif(dsm)
-# dsm[het & toHom < corrBias/2] = 0
-# dsm[het & toHom > 1-corrBias/2] = 2
+# take 01 het. children, flip equal fractions to 00 or 11
+flippingIndicator = runif(het01)
+toflip = het01[flippingIndicator < confRate/2]
+dsmP1[toflip] = dsmM1[toflip]
+gtmF[toflip] = "0|0"
+toflip = het01[flippingIndicator > 1-confRate/2]
+dsmM1[toflip] = dsmP1[toflip]
+gtmF[toflip] = "1|1"
+
+# repeat with 10 het. children
+flippingIndicator = runif(het10)
+toflip = het10[flippingIndicator < confRate/2]
+dsmP1[toflip] = dsmM1[toflip]
+gtmF[toflip] = "1|1"
+toflip = het10[flippingIndicator > 1-confRate/2]
+dsmM1[toflip] = dsmP1[toflip]
+gtmF[toflip] = "0|0"
+
+# make the other GT matrices with M1,P1 already after confounding
+# gtmM = matrix(paste(dsmM1, dsmM2, sep="|"), nsnps, ninds/3)
+# gtmP = matrix(paste(dsmP1, dsmP2, sep="|"), nsnps, ninds/3)
 
 
 # gtms are converted to VCF and NOT USED to calculate true phenotype
